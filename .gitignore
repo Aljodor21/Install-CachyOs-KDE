@@ -1,0 +1,16 @@
+# Instaladores descargados
+*.run
+*.deb
+*.tar.gz
+*.zip
+
+# Archivos de credenciales (nunca deben versionarse)
+credentials_nas
+*.credentials
+*.secret
+
+# Temporales del sistema
+.DS_Store
+Thumbs.db
+*~
+*.swp
