@@ -14,3 +14,14 @@ credentials_nas
 Thumbs.db
 *~
 *.swp
+
+# Logs del install (creados por install_*.sh y el wizard)
+/install-*.log
+/*.log
+/lib/*.log
+wizard-*.log
+
+# Backups automáticos de los scripts
+*.bak
+*.orig
+*.tmp
