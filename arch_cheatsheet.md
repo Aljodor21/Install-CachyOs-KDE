@@ -1,5 +1,15 @@
 # Chuleta Arch Linux / CachyOS
 
+> **Aviso de seguridad AUR**: los paquetes del AUR los mantiene la comunidad, sin
+> revisión centralizada. En 2024-2025 hubo varios incidentes de paquetes AUR
+> maliciosos que comprometieron máquinas. Para software sensible, **preferí
+> repos oficiales o flatpak** siempre que sea posible. Este repo minimiza el
+> uso de AUR a software que no está en repos (Brave, VS Code, WPS, OTD).
+>
+> Si necesitás la chuleta de Debian/Ubuntu, mirá [`debian_cheatsheet.md`](debian_cheatsheet.md).
+> Si querés virtualización, el repo usa KVM/QEMU/libvirt (NO VirtualBox) — la
+> sección está en la chuleta de Debian pero los comandos son distro-agnostic.
+
 ## Pacman vs APT
 
 | APT (Debian/Ubuntu)            | Pacman (Arch)               |
@@ -25,9 +35,14 @@ yay -Syu              # actualiza todo, incluyendo AUR
 yay -Ss paquete       # busca en AUR y repos
 yay -R paquete        # elimina paquete
 yay -Rns paquete      # elimina paquete + dependencias huérfanas
+yay -Qm               # listar paquetes instalados desde AUR (vs oficiales)
+yay -Yc               # eliminar deps de AUR huérfanas
 ```
 
 > Usa yay igual que pacman, pero busca también en AUR.
+> **Cuidado**: revisá siempre el PKGBUILD antes de instalar (yay -G <pkg> para bajarlo
+> sin instalar y leerlo). Si ves `curl ... | sh`, `source` sospechoso, o cosas
+> ofuscadas, no instales.
 
 ## Flatpak
 
