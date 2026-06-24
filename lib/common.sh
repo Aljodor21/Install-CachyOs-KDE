@@ -132,3 +132,53 @@ cmd_exists() {
 group_exists() {
     getent group "$1" &>/dev/null
 }
+
+# --- Checks de validación (usados por validate_install.sh) ---
+
+# Verifica que un comando exista.
+#   check_cmd "label visible" nombre_comando
+check_cmd() {
+    local label="$1"
+    local cmd="$2"
+    if cmd_exists "$cmd"; then
+        ok "$label — $(command -v "$cmd")"
+    else
+        fail "$label — comando '$cmd' no encontrado"
+    fi
+}
+
+# Verifica que un servicio systemd esté activo.
+#   check_service "label" nombre_servicio
+check_service() {
+    local label="$1"
+    local service="$2"
+    if systemctl is-active --quiet "$service" 2>/dev/null; then
+        ok "$label — activo"
+    else
+        fail "$label — servicio '$service' no está corriendo"
+    fi
+}
+
+# Verifica que el usuario esté en un grupo.
+#   check_group "label" nombre_grupo
+check_group() {
+    local label="$1"
+    local group="$2"
+    if id -nG "$USER" 2>/dev/null | grep -qw "$group"; then
+        ok "$label — usuario en grupo '$group'"
+    else
+        fail "$label — usuario NO está en grupo '$group' (reinicia sesión)"
+    fi
+}
+
+# Verifica que un directorio exista.
+#   check_dir "label" /ruta/al/dir
+check_dir() {
+    local label="$1"
+    local dir="$2"
+    if [ -d "$dir" ]; then
+        ok "$label — $dir"
+    else
+        fail "$label — directorio no existe: $dir"
+    fi
+}
