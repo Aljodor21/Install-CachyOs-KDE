@@ -44,18 +44,24 @@ check_not_root() {
     return 0
 }
 
-# Verifica que el usuario tenga sudo sin password (requerido para installs desatendidos).
+# Verifica si el usuario tiene sudo sin password. Si no, avisa pero deja continuar
+# (los installs van a pausar para pedir password, pero funcionan).
 check_sudo_nopasswd() {
-    if ! sudo -n true 2>/dev/null; then
-        log_error "Tu usuario no tiene sudo sin password configurado."
-        log_error "  Opciones:"
-        log_error "    1. Configura NOPASSWD en /etc/sudoers (visudo):"
-        log_error "       $USER ALL=(ALL) NOPASSWD: ALL"
-        log_error "    2. O vigilá la pantalla y escribí tu password cuando lo pida"
-        log_error "       (pero los installs largos van a fallar a mitad de camino)"
-        return 1
+    if sudo -n true 2>/dev/null; then
+        log_ok "sudo NOPASSWD configurado para $USER"
+        return 0
     fi
-    log_ok "sudo NOPASSWD configurado para $USER"
+
+    # Si la variable de entorno INSECURE_SUDO_OK=1 está seteada, sigue silencioso.
+    if [ "${INSECURE_SUDO_OK:-0}" = "1" ]; then
+        log_warn "sudo requiere password. Continuando en modo interactivo (INSECURE_SUDO_OK=1)."
+        return 0
+    fi
+
+    log_warn "Tu usuario no tiene sudo NOPASSWD. El install va a pausar para pedir password."
+    log_warn "  Para unattended: configurar NOPASSWD en /etc/sudoers (visudo):"
+    log_warn "    $USER ALL=(ALL) NOPASSWD: ALL"
+    log_warn "  Para saltear este check: export INSECURE_SUDO_OK=1"
     return 0
 }
 

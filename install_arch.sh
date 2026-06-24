@@ -1,119 +1,243 @@
-#!/bin/bash
-# Script de instalación post-install CachyOS (Hyprland)
-# Ejecutar como usuario normal, NO como root
+#!/usr/bin/env bash
+# install_arch.sh — Instala y configura el entorno de desarrollo en familia Arch.
+# Sourceado desde install.sh (que detecta la familia). NO ejecutar directamente.
+#
+# Familia soportada: arch, cachyos, manjaro, endeavour, garuda, artix, archlabs, ...
+# Gestor: pacman + yay (AUR)
+#
+# Ejecutar como usuario normal (NO root). El script usa sudo internamente.
 
-echo "=== Actualizando sistema ==="
-sudo pacman -Syu --noconfirm
+set -e
 
-echo "=== Instalando yay (AUR helper) si no está ==="
-if ! command -v yay &> /dev/null; then
-    sudo pacman -S --noconfirm git base-devel
-    git clone https://aur.archlinux.org/yay.git /tmp/yay
-    cd /tmp/yay && makepkg -si --noconfirm
-    cd ~
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Sourcear dependencias
+# shellcheck source=lib/detect_distro.sh
+source "$SCRIPT_DIR/lib/detect_distro.sh"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
+# shellcheck source=lib/packages.sh
+source "$SCRIPT_DIR/lib/packages.sh"
+
+# Verificar que estamos en la familia correcta
+if [ "$DISTRO_FAMILY" != "arch" ]; then
+    log_error "Este script es para familia Arch, pero la distro detectada es '$DISTRO_ID' ($DISTRO_FAMILY)."
+    log_error "Usa install_debian.sh en su lugar."
+    exit 1
 fi
 
-echo "=== Herramientas base ==="
-sudo pacman -S --noconfirm \
-    git \
-    github-cli \
-    ffmpeg \
-    python \
-    python-pip \
-    kitty \
-    flatpak \
-    vlc \
-    gst-plugins-ugly \
-    gst-plugins-bad \
-    base-devel \
-    zsh \
-    ttf-jetbrains-mono-nerd \
-    cifs-utils \
-    grim \
-    slurp \
-    wl-clipboard \
-    pavucontrol \
-    btop \
-    brightnessctl \
-    bluez \
-    bluez-utils \
-    nwg-look
-
-echo "=== Terminal: Oh My Zsh ==="
-sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
-
-echo "=== Terminal: Powerlevel10k ==="
-git clone --depth=1 https://github.com/romkatv/powerlevel10k.git \
-    ~/.oh-my-zsh/themes/powerlevel10k
-
-echo "=== Terminal: Plugins Zsh ==="
-git clone https://github.com/zsh-users/zsh-autosuggestions \
-    ~/.oh-my-zsh/plugins/zsh-autosuggestions
-git clone https://github.com/zsh-users/zsh-syntax-highlighting \
-    ~/.oh-my-zsh/plugins/zsh-syntax-highlighting
-git clone https://github.com/zsh-users/zsh-history-substring-search \
-    ~/.oh-my-zsh/plugins/zsh-history-substring-search
-
-echo "=== Terminal: Aplicando configuraciones ==="
-cp "$(dirname "$0")/.zshrc" ~/.zshrc
-mkdir -p ~/.config/kitty
-cp "$(dirname "$0")/kitty.conf" ~/.config/kitty/kitty.conf
-chsh -s $(which zsh)
-
-echo "=== Brave ==="
-yay -S --noconfirm brave-bin
-
-echo "=== VS Code ==="
-yay -S --noconfirm visual-studio-code-bin
-
-echo "=== Node.js via NVM ==="
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-source ~/.bashrc
-nvm install --lts
-
-echo "=== Docker ==="
-sudo pacman -S --noconfirm docker docker-compose
-sudo systemctl enable --now docker
-sudo usermod -aG docker $USER
-
-echo "=== OBS Studio ==="
-sudo pacman -S --noconfirm obs-studio
-
-echo "=== VirtualBox ==="
-sudo pacman -S --noconfirm virtualbox virtualbox-host-modules-arch
-sudo modprobe vboxdrv
-sudo usermod -aG vboxusers $USER
-
-echo "=== Tailscale ==="
-sudo pacman -S --noconfirm tailscale
-sudo systemctl enable --now tailscaled
-
-echo "=== WPS Office ==="
-yay -S --noconfirm wps-office
-
-echo "=== Spotify ==="
-flatpak install -y flathub com.spotify.Client
-
-echo "=== Claude CLI ==="
-npm install -g @anthropic-ai/claude-code
-
-echo "=== Angular CLI ==="
-npm install -g @angular/cli
-
-echo "=== Java JDK 17 ==="
-sudo pacman -S --noconfirm jdk17-openjdk
-
-echo "=== Arduino IDE ==="
-yay -S --noconfirm arduino-ide-bin
-
-echo "=== OpenTabletDriver (Huion tablet) ==="
-yay -S --noconfirm opentabletdriver
-
-echo "=== DaVinci Resolve ==="
-echo ">>> DaVinci Resolve requiere descarga manual desde:"
-echo ">>> https://www.blackmagicdesign.com/products/davinciresolve"
-echo ">>> Descarga el instalador .run y ejecuta: chmod +x DaVinci*.run && ./DaVinci*.run"
+# Precondiciones
+check_not_root || exit 1
+check_sudo_nopasswd || exit 1
+check_internet || exit 1
 
 echo ""
-echo "=== INSTALACION COMPLETADA ==="
-echo "IMPORTANTE: Reinicia la sesión para aplicar cambios de grupos (docker, vboxusers)"
+log_step "Entorno detectado"
+log_info "  Distro:    $DISTRO_NAME"
+log_info "  Familia:   $DISTRO_FAMILY"
+log_info "  Gestor:    $PKG_MGR + AUR"
+echo ""
+
+# ──────────────────────────────────────────────────────────────────────────────
+log_step "Actualizando sistema"
+# ──────────────────────────────────────────────────────────────────────────────
+sudo pacman -Syu --noconfirm
+
+# ──────────────────────────────────────────────────────────────────────────────
+log_step "Instalando yay (AUR helper) si no está"
+# ──────────────────────────────────────────────────────────────────────────────
+if ! cmd_exists yay; then
+    log_info "yay no encontrado, instalando desde AUR..."
+    sudo pacman -S --noconfirm --needed git base-devel
+    tmpdir=$(mktemp -d)
+    git clone https://aur.archlinux.org/yay.git "$tmpdir/yay"
+    (cd "$tmpdir/yay" && makepkg -si --noconfirm)
+    rm -rf "$tmpdir"
+else
+    log_ok "yay ya está instalado"
+fi
+
+# ──────────────────────────────────────────────────────────────────────────────
+log_step "Instalando paquetes de repos oficiales"
+# ──────────────────────────────────────────────────────────────────────────────
+# Helper: instala una lista de paquetes (ignorando los vacíos) usando pacman.
+pacman_install() {
+    local pkgs=()
+    for p in "$@"; do
+        [ -n "$p" ] && pkgs+=("$p")
+    done
+    if [ ${#pkgs[@]} -gt 0 ]; then
+        sudo pacman -S --noconfirm --needed "${pkgs[@]}"
+    fi
+}
+
+# Resolver e instalar todos los paquetes de PKG_ARCH (excepto tailscale que va separado)
+pacman_install $(
+    for key in git github-cli python kitty flatpak vlc codecs base-devel zsh \
+               nerd-font cifs-utils screenshot audio system-tools bluetooth \
+               gtk-theme ffmpeg docker obs java17 qemu libvirt ovmf; do
+        pkg_for "$key"
+    done
+)
+
+# ──────────────────────────────────────────────────────────────────────────────
+log_step "Instalando paquetes de AUR"
+# ──────────────────────────────────────────────────────────────────────────────
+# Filtrar los que ya estén instalados
+aur_to_install=()
+for pkg in "${PKG_ARCH_AUR[@]}"; do
+    if pacman -Qi "$pkg" &>/dev/null; then
+        log_ok "AUR $pkg ya está instalado"
+    else
+        aur_to_install+=("$pkg")
+    fi
+done
+if [ ${#aur_to_install[@]} -gt 0 ]; then
+    yay -S --noconfirm "${aur_to_install[@]}"
+else
+    log_ok "Todos los paquetes de AUR ya están instalados"
+fi
+
+# ──────────────────────────────────────────────────────────────────────────────
+log_step "Habilitando servicios"
+# ──────────────────────────────────────────────────────────────────────────────
+sudo systemctl enable --now docker
+sudo usermod -aG docker "$USER"
+
+sudo systemctl enable --now tailscaled
+sudo systemctl enable --now libvirtd
+sudo usermod -aG libvirt "$USER"
+
+# Bluetooth
+sudo systemctl enable --now bluetooth
+
+# ──────────────────────────────────────────────────────────────────────────────
+log_step "Virtualización KVM/QEMU — red default"
+# ──────────────────────────────────────────────────────────────────────────────
+# La red 'default' de libvirt permite que las VMs tengan NAT y salida a internet.
+# Si ya está definida no la sobreescribimos.
+if ! sudo virsh net-list --all 2>/dev/null | grep -q " default "; then
+    log_info "Definiendo red libvirt 'default'..."
+    sudo virsh net-define /usr/share/libvirt/networks/default.xml 2>/dev/null || true
+    sudo virsh net-start default 2>/dev/null || true
+    sudo virsh net-autostart default 2>/dev/null || true
+else
+    log_ok "Red libvirt 'default' ya existe"
+fi
+
+# ──────────────────────────────────────────────────────────────────────────────
+log_step "Terminal — Oh My Zsh + Powerlevel10k + plugins"
+# ──────────────────────────────────────────────────────────────────────────────
+if [ ! -d "$HOME/.oh-my-zsh" ]; then
+    sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+else
+    log_ok "Oh My Zsh ya está instalado"
+fi
+
+if [ ! -d "$HOME/.oh-my-zsh/themes/powerlevel10k" ]; then
+    git clone --depth=1 https://github.com/romkatv/powerlevel10k.git \
+        "$HOME/.oh-my-zsh/themes/powerlevel10k"
+else
+    log_ok "Powerlevel10k ya está clonado"
+fi
+
+# Plugins
+for plugin_pair in \
+    "zsh-autosuggestions|https://github.com/zsh-users/zsh-autosuggestions" \
+    "zsh-syntax-highlighting|https://github.com/zsh-users/zsh-syntax-highlighting" \
+    "zsh-history-substring-search|https://github.com/zsh-users/zsh-history-substring-search"; do
+    name="${plugin_pair%%|*}"
+    url="${plugin_pair##*|}"
+    if [ ! -d "$HOME/.oh-my-zsh/plugins/$name" ]; then
+        git clone "$url" "$HOME/.oh-my-zsh/plugins/$name"
+    else
+        log_ok "Plugin $name ya está clonado"
+    fi
+done
+
+# ──────────────────────────────────────────────────────────────────────────────
+log_step "Aplicando configs (.zshrc, kitty.conf)"
+# ──────────────────────────────────────────────────────────────────────────────
+cp -f "$SCRIPT_DIR/.zshrc" "$HOME/.zshrc"
+mkdir -p "$HOME/.config/kitty"
+cp -f "$SCRIPT_DIR/kitty.conf" "$HOME/.config/kitty/kitty.conf"
+
+# Kitty como terminal por defecto
+if grep -q "TerminalApplication" "$HOME/.config/kdeglobals" 2>/dev/null; then
+    sed -i 's/TerminalApplication=.*/TerminalApplication=kitty/' "$HOME/.config/kdeglobals"
+else
+    mkdir -p "$HOME/.config"
+    printf "\n[General]\nTerminalApplication=kitty\n" >> "$HOME/.config/kdeglobals"
+fi
+if cmd_exists update-alternatives; then
+    sudo update-alternatives --install /usr/bin/x-terminal-emulator x-terminal-emulator /usr/bin/kitty 50 2>/dev/null || true
+    sudo update-alternatives --set x-terminal-emulator /usr/bin/kitty 2>/dev/null || true
+fi
+
+# ──────────────────────────────────────────────────────────────────────────────
+log_step "Node.js — NVM + LTS"
+# ──────────────────────────────────────────────────────────────────────────────
+export NVM_DIR="$HOME/.nvm"
+if [ ! -s "$NVM_DIR/nvm.sh" ]; then
+    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+fi
+# shellcheck source=/dev/null
+source "$NVM_DIR/nvm.sh"
+nvm install --lts
+nvm alias default node
+
+# ──────────────────────────────────────────────────────────────────────────────
+log_step "npm globals — Claude Code, Angular CLI, opencode"
+# ──────────────────────────────────────────────────────────────────────────────
+npm install -g @anthropic-ai/claude-code
+npm install -g @angular/cli
+
+# opencode: installer oficial
+if ! cmd_exists opencode; then
+    log_info "Instalando opencode..."
+    curl -fsSL https://opencode.ai/install | bash
+    # El installer pone el binario en ~/.opencode/bin
+    if [ -d "$HOME/.opencode/bin" ]; then
+        export PATH="$HOME/.opencode/bin:$PATH"
+    fi
+fi
+
+# ──────────────────────────────────────────────────────────────────────────────
+log_step "Flatpak — Spotify"
+# ──────────────────────────────────────────────────────────────────────────────
+if ! cmd_exists flatpak; then
+    log_warn "flatpak no está disponible, saltando Spotify."
+else
+    flatpak install -y flathub com.spotify.Client 2>/dev/null || log_warn "No se pudo instalar Spotify (¿Flathub no configurado?)"
+fi
+
+# ──────────────────────────────────────────────────────────────────────────────
+log_step "OpenTabletDriver — habilitando servicio de usuario"
+# ──────────────────────────────────────────────────────────────────────────────
+if cmd_exists otd || pacman -Qi opentabletdriver &>/dev/null; then
+    systemctl --user enable --now opentabletdriver 2>/dev/null || log_warn "No se pudo habilitar opentabletdriver (¿sesión de usuario sin systemd?)"
+else
+    log_info "OpenTabletDriver no instalado (skip)"
+fi
+
+# ──────────────────────────────────────────────────────────────────────────────
+log_step "DaVinci Resolve — recordatorio manual"
+# ──────────────────────────────────────────────────────────────────────────────
+echo ""
+log_info "DaVinci Resolve requiere descarga manual:"
+log_info "  1. sudo pacman -S --needed fuse2"
+log_info "  2. Descargar .run desde https://www.blackmagicdesign.com/products/davinciresolve"
+log_info "  3. chmod +x DaVinci_Resolve_*.run && ./DaVinci_Resolve_*.run"
+echo ""
+
+# ──────────────────────────────────────────────────────────────────────────────
+log_step "Instalación completada"
+# ──────────────────────────────────────────────────────────────────────────────
+echo ""
+log_ok "Paquetes instalados y servicios habilitados."
+log_info "  Cierra sesión y volvé a entrar para que tomen efecto:"
+log_info "    - grupo docker (docker sin sudo)"
+log_info "    - grupo libvirt (virt-manager sin sudo)"
+log_info "    - zsh como shell por defecto"
+log_info "  Después corré: ./validate_install.sh"
+echo ""
