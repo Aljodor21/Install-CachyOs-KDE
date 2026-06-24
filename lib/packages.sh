@@ -94,15 +94,15 @@ declare -A PKG_DEBIAN=(
 
 # Repos .deb externos firmados con GPG — solo familia Debian.
 # install_debian.sh usa esto para poblar /etc/apt/sources.list.d/ y /etc/apt/keyrings/.
-# Formato: "nombre|keyring_url|keyring_path|codename_token|repo_suite|repo_components|arch_aware"
-#   - codename_token: "version_codename" o "suite_codename" (lo expande install_debian.sh)
-#   - arch_aware: "1" si hay que poner [arch=...] en la línea, "0" si no
+# Formato: "nombre|keyring_url|keyring_path"
+# install_debian.sh luego arma la línea del repo por nombre (con case),
+# porque la forma del repo varía bastante entre proyectos.
 PKG_DEBIAN_EXTERNAL_REPOS=(
-    "docker|https://download.docker.com/linux/debian/gpg|/etc/apt/keyrings/docker.gpg|version_codename|stable||1"
-    "brave|https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg|/etc/apt/keyrings/brave-browser.gpg|||stable main|1"
-    "vscode|https://packages.microsoft.com/keys/microsoft-archive-keyring.gpg|/etc/apt/keyrings/microsoft.gpg|||stable main|1"
-    "tailscale|https://pkgs.tailscale.com/stable/debian/tailscale-archive-keyring.gpg|/etc/apt/keyrings/tailscale.gpg|version_codename|main||0"
-    "opentabletdriver|https://opentabletdriver.net/OldTuxedo/release/deb/OtdRelease.asc|/etc/apt/keyrings/opentabletdriver.gpg|version_codename|contrib||0"
+    "docker|https://download.docker.com/linux/debian/gpg|/etc/apt/keyrings/docker.gpg"
+    "brave|https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg|/etc/apt/keyrings/brave-browser.gpg"
+    "vscode|https://packages.microsoft.com/keys/microsoft-archive-keyring.gpg|/etc/apt/keyrings/microsoft.gpg"
+    "tailscale|https://pkgs.tailscale.com/stable/debian/tailscale-archive-keyring.gpg|/etc/apt/keyrings/tailscale.gpg"
+    "opentabletdriver|https://opentabletdriver.net/OldTuxedo/release/deb/OtdRelease.asc|/etc/apt/keyrings/opentabletdriver.gpg"
 )
 
 # Paquetes de los repos externos — familia Debian
