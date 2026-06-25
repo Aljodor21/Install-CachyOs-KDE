@@ -414,6 +414,13 @@ log_step "Flatpak — Spotify"
 if ! cmd_exists flatpak; then
     log_warn "flatpak no está disponible, saltando Spotify."
 else
+    # Usuario al grupo 'flatpak' (necesario para instalar apps sin sudo).
+    # Sin esto, flatpak tira 'Deploy not allowed for user' en sesiones sin polkit agent.
+    if ! id -nG "$USER" 2>/dev/null | grep -qw flatpak; then
+        log_info "Agregando $USER al grupo 'flatpak'..."
+        sudo usermod -aG flatpak "$USER"
+    fi
+
     # Agregar Flathub si no está
     if ! flatpak remote-list 2>/dev/null | grep -q flathub; then
         log_info "Agregando Flathub remote..."
@@ -428,10 +435,9 @@ log_step "OpenTabletDriver — instalación desde GitHub releases"
 # OTD ya no provee un repo apt upstream. Descargamos el tarball binario desde
 # GitHub releases y lo dejamos en /opt/opentabletdriver. La activación del
 # servicio de usuario se hace en el bloque siguiente.
-OTD_INSTALL_DIR="/opt/opentabletdriver"
-OTD_BIN_LINK="/usr/local/bin/otd"
-if [ -x "$OTD_BIN_LINK" ] || [ -d "$OTD_INSTALL_DIR" ]; then
-    log_ok "OpenTabletDriver ya instalado en $OTD_INSTALL_DIR"
+OTD_BIN="/usr/local/bin/otd"
+if [ -x "$OTD_BIN" ]; then
+    log_ok "OpenTabletDriver ya instalado ($OTD_BIN)"
 else
     log_info "Descargando OpenTabletDriver desde GitHub releases..."
     otd_tmp=$(mktemp -d)
@@ -444,19 +450,23 @@ else
     else
         log_info "Descargando $(basename "$otd_release_url")..."
         if curl -fsSL -o "$otd_tmp/otd.tar.gz" "$otd_release_url"; then
-            log_info "Extrayendo a $OTD_INSTALL_DIR..."
-            sudo mkdir -p "$OTD_INSTALL_DIR"
-            sudo tar -xzf "$otd_tmp/otd.tar.gz" -C "$OTD_INSTALL_DIR" --strip-components=1
-            # Symlink del binario
-            if [ -x "$OTD_INSTALL_DIR/OpenTabletDriver.UX.Gtk" ]; then
-                sudo ln -sf "$OTD_INSTALL_DIR/OpenTabletDriver.UX.Gtk" "$OTD_BIN_LINK"
-                log_ok "OpenTabletDriver instalado (binario: $OTD_BIN_LINK)"
-            elif [ -x "$OTD_INSTALL_DIR/OpenTabletDriver" ]; then
-                sudo ln -sf "$OTD_INSTALL_DIR/OpenTabletDriver" "$OTD_BIN_LINK"
-                log_ok "OpenTabletDriver instalado (binario: $OTD_BIN_LINK)"
+            log_info "Extrayendo a / (FHS-correcto: todo va a /usr/local/)..."
+            # El tarball tiene un top-level 'opentabletdriver/' que strippeamos.
+            # Asi /usr/local/bin/otd, /usr/local/share/applications/opentabletdriver.desktop, etc.
+            sudo tar -xzf "$otd_tmp/otd.tar.gz" -C / --strip-components=1
+            if [ -x "$OTD_BIN" ]; then
+                log_ok "OpenTabletDriver instalado (binario: $OTD_BIN)"
+                log_info "  Entrada KDE: opentabletdriver.desktop en /usr/local/share/applications/"
             else
-                log_warn "Binario de OTD no encontrado en $OTD_INSTALL_DIR — revisá el tarball"
-                ls -la "$OTD_INSTALL_DIR" 2>/dev/null | head -10
+                log_warn "Extracción completó pero $OTD_BIN no apareció"
+                ls -la /usr/local/bin/otd* 2>/dev/null
+            fi
+            # El .service viene en /usr/local/lib/systemd/user/ (no estándar para systemd).
+            # Lo copiamos a /etc/systemd/user/ para que systemd lo encuentre a nivel sistema.
+            if [ -f /usr/local/lib/systemd/user/opentabletdriver.service ]; then
+                sudo mkdir -p /etc/systemd/user
+                sudo cp /usr/local/lib/systemd/user/opentabletdriver.service /etc/systemd/user/
+                log_ok "systemd user service copiado a /etc/systemd/user/"
             fi
         else
             log_error "Descarga de OTD falló. Si tenés tablet Huion, instalá manualmente desde"
@@ -465,27 +475,12 @@ else
     fi
     rm -rf "$otd_tmp"
 
-    # Crear servicio systemd de usuario para el daemon de OTD
-    if [ -x "$OTD_BIN_LINK" ]; then
-        mkdir -p "$HOME/.config/systemd/user"
-        cat > "$HOME/.config/systemd/user/opentabletdriver.service" << EOF
-[Unit]
-Description=OpenTabletDriver Daemon
-After=graphical-session.target
-
-[Service]
-Type=simple
-ExecStart=$OTD_INSTALL_DIR/OpenTabletDriver.Daemon
-Restart=on-failure
-RestartSec=3
-
-[Install]
-WantedBy=default.target
-EOF
+    # Activar el servicio de usuario
+    if [ -x "$OTD_BIN" ]; then
         systemctl --user daemon-reload 2>/dev/null || true
         systemctl --user enable --now opentabletdriver.service 2>/dev/null \
             && log_ok "Servicio de usuario opentabletdriver habilitado e iniciado" \
-            || log_info "Servicio creado pero no activado (correló manualmente: systemctl --user enable --now opentabletdriver.service)"
+            || log_info "Servicio creado pero no activado (corrélo manualmente: systemctl --user enable --now opentabletdriver.service)"
     fi
 fi
 
