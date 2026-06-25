@@ -63,6 +63,25 @@ sudo apt update
 sudo apt upgrade -y
 
 # ──────────────────────────────────────────────────────────────────────────────
+log_step "Prereqs — curl, wget, ca-certificates, gnupg"
+# ──────────────────────────────────────────────────────────────────────────────
+# El netinst de Debian NO trae curl (viene wget). Como este script usa curl
+# para bajar keyrings y binarios, lo instalamos acá si falta.
+# También ca-certificates y gnupg son necesarios para verificar HTTPS y
+# dearmorar las claves GPG de los repos externos.
+PREREQ_PKGS=()
+cmd_exists curl || PREREQ_PKGS+=(curl)
+cmd_exists wget || PREREQ_PKGS+=(wget)
+dpkg -s ca-certificates >/dev/null 2>&1 || PREREQ_PKGS+=(ca-certificates)
+dpkg -s gnupg >/dev/null 2>&1 || PREREQ_PKGS+=(gnupg)
+if [ ${#PREREQ_PKGS[@]} -gt 0 ]; then
+    log_info "Instalando prereqs: ${PREREQ_PKGS[*]}"
+    sudo apt install -y "${PREREQ_PKGS[@]}"
+else
+    log_ok "Prereqs ya instalados (curl, wget, ca-certificates, gnupg)"
+fi
+
+# ──────────────────────────────────────────────────────────────────────────────
 log_step "Habilitando non-free-firmware (recomendado para hardware moderno)"
 # ──────────────────────────────────────────────────────────────────────────────
 # Debian separa main, contrib, non-free, non-free-firmware. En Ubuntu todo viene en 'main'
@@ -189,13 +208,46 @@ apt_install() {
     fi
 }
 
+# Helper: instalar un paquete probando varias alternativas en orden.
+#   try_install <preferido> [alternativa1] [alternativa2] ...
+# Útil para paquetes que cambian de nombre entre releases de Debian
+# (libfuse2 → libfuse2t64, openjdk-17-jdk → openjdk-21-jdk).
+try_install() {
+    local pkg
+    for pkg in "$@"; do
+        [ -z "$pkg" ] && continue
+        if apt-cache show "$pkg" >/dev/null 2>&1; then
+            log_info "  Instalando $pkg..."
+            if sudo apt install -y "$pkg" >/dev/null 2>&1; then
+                log_ok "  $pkg instalado"
+                return 0
+            fi
+        else
+            log_info "  $pkg no disponible en los repos, probando siguiente..."
+        fi
+    done
+    log_warn "  Ninguno disponible de: $*"
+    return 1
+}
+
 apt_install $(
     for key in git github-cli python kitty flatpak vlc codecs base-devel zsh \
                cifs-utils screenshot audio system-tools bluetooth \
-               gtk-theme ffmpeg obs java17 libfuse qemu libvirt ovmf; do
+               gtk-theme ffmpeg obs qemu libvirt ovmf; do
         pkg_for "$key"
     done
 )
+
+# Java JDK: openjdk-17-jdk existe en Debian 12 (bookworm) pero NO en Debian 13
+# (trixie). Si no está, caemos a openjdk-21-jdk o default-jdk.
+log_step "Java JDK (con fallback para Debian 13 / trixie)"
+JAVA_PREFERRED=$(pkg_for java17)   # openjdk-17-jdk
+try_install "$JAVA_PREFERRED" openjdk-21-jdk default-jdk
+
+# libfuse: libfuse2 fue renombrado a libfuse2t64 en Debian 13 (transición 64-bit time_t).
+log_step "libfuse2 (con fallback libfuse2t64 para trixie)"
+LIBFUSE_PREFERRED=$(pkg_for libfuse)   # libfuse2
+try_install "$LIBFUSE_PREFERRED" libfuse2t64
 
 # ──────────────────────────────────────────────────────────────────────────────
 log_step "Instalando paquetes de repos externos"
@@ -371,7 +423,7 @@ log_step "DaVinci Resolve — recordatorio manual"
 # ──────────────────────────────────────────────────────────────────────────────
 echo ""
 log_info "DaVinci Resolve requiere descarga manual:"
-log_info "  1. sudo apt install libfuse2 (ya instalado en este script)"
+log_info "  1. libfuse2 / libfuse2t64 (ya instalado por este script)"
 log_info "  2. Descargar .run desde https://www.blackmagicdesign.com/products/davinciresolve"
 log_info "  3. chmod +x DaVinci_Resolve_*.run && ./DaVinci_Resolve_*.run"
 echo ""
