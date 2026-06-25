@@ -106,9 +106,11 @@ fi
 log_step "Agregando repos .deb externos firmados con GPG"
 # ──────────────────────────────────────────────────────────────────────────────
 # Helper: agrega un repo .deb externo con keyring firmado.
-#   add_deb_repo <name> <keyring_url> <keyring_path> <repo_line>
+#   add_deb_repo <name> <keyring_url> <keyring_path> <repo_line> [keyring_format]
 #     <repo_line> es la línea completa de repo, ej:
 #       "deb [arch=amd64 signed-by=K] https://download.docker.com/linux/debian bookworm stable"
+#     <keyring_format> = "armored" (default, ASCII, requiere gpg --dearmor)
+#                     = "binary" (binario GPG ya, no dearmor)
 #   Genera:  /etc/apt/sources.list.d/<name>.list
 #            /etc/apt/keyrings/<name>.gpg (perm 0644)
 add_deb_repo() {
@@ -116,6 +118,7 @@ add_deb_repo() {
     local keyring_url="$2"
     local keyring_path="$3"
     local repo_line="$4"
+    local keyring_format="${5:-armored}"
 
     local sources_file="/etc/apt/sources.list.d/${name}.list"
 
@@ -129,9 +132,18 @@ add_deb_repo() {
 
     # 1. Instalar keyring firmado
     sudo install -m 0755 -d "$(dirname "$keyring_path")"
-    if ! curl -fsSL "$keyring_url" | sudo gpg --dearmor -o "$keyring_path" --yes 2>/dev/null; then
-        log_error "Falló la descarga del keyring para '$name' (URL: $keyring_url)"
-        return 1
+    if [ "$keyring_format" = "binary" ]; then
+        # Keyring ya viene en formato binario GPG, descargar directo
+        if ! sudo curl -fsSL -o "$keyring_path" "$keyring_url" 2>/dev/null; then
+            log_error "Falló la descarga del keyring binario para '$name' (URL: $keyring_url)"
+            return 1
+        fi
+    else
+        # Formato armored (ASCII), dearmor antes de guardar
+        if ! curl -fsSL "$keyring_url" | sudo gpg --dearmor -o "$keyring_path" --yes 2>/dev/null; then
+            log_error "Falló la descarga/dearmor del keyring para '$name' (URL: $keyring_url)"
+            return 1
+        fi
     fi
     sudo chmod 0644 "$keyring_path"
 
@@ -154,7 +166,7 @@ declare -A PKG_DEBIAN_REPO_BUILT  # para tracking
 for entry in "${PKG_DEBIAN_EXTERNAL_REPOS[@]}"; do
     IFS='|' read -r name keyring_url keyring_path <<< "$entry"
     flavor=$(repo_flavor)
-    kf=""
+    keyring_format="armored"
 
     case "$name" in
         docker)
@@ -165,19 +177,20 @@ for entry in "${PKG_DEBIAN_EXTERNAL_REPOS[@]}"; do
             repo_line="deb [arch=$ARCH signed-by=$keyring_path] https://brave-browser-apt-release.s3.brave.com/ stable main"
             ;;
         vscode)
+            # Microsoft cambió la URL del keyring de microsoft-archive-keyring.gpg a microsoft.asc
+            keyring_url="https://packages.microsoft.com/keys/microsoft.asc"
             repo_line="deb [arch=$ARCH signed-by=$keyring_path] https://packages.microsoft.com/repos/code stable main"
             ;;
         tailscale)
-            keyring_url="https://pkgs.tailscale.com/stable/${flavor}/tailscale-archive-keyring.gpg"
+            # Tailscale nuevo formato: keyring binario .noarmor.gpg con codename en URL
+            keyring_url="https://pkgs.tailscale.com/stable/${flavor}/${VERSION_CODENAME}.noarmor.gpg"
+            keyring_format="binary"
             repo_line="deb [signed-by=$keyring_path] https://pkgs.tailscale.com/stable/${flavor} $VERSION_CODENAME main"
             ;;
         opentabletdriver)
-            # OpenTabletDriver: solo disponible para Debian puro
-            if [ "$DISTRO_ID" != "debian" ]; then
-                log_warn "opentabletdriver: repo upstream solo soporta Debian puro. Saltando para $DISTRO_NAME."
-                continue
-            fi
-            repo_line="deb [signed-by=$keyring_path] https://opentabletdriver.net/OldTuxedo/release/deb $VERSION_CODENAME contrib"
+            # OTD ya no tiene repo apt — se instala vía tarball binario más abajo.
+            log_info "OpenTabletDriver: ya no hay repo apt upstream. Se instala por tarball binario (ver bloque dedicado)."
+            continue
             ;;
         *)
             log_warn "Repo externo desconocido: $name"
@@ -252,7 +265,7 @@ try_install "$LIBFUSE_PREFERRED" libfuse2t64
 # ──────────────────────────────────────────────────────────────────────────────
 log_step "Instalando paquetes de repos externos"
 # ──────────────────────────────────────────────────────────────────────────────
-apt_install $(pkg_from_repo docker) $(pkg_from_repo brave) $(pkg_from_repo vscode) $(pkg_from_repo tailscale) $(pkg_from_repo opentabletdriver)
+apt_install $(pkg_from_repo docker) $(pkg_from_repo brave) $(pkg_from_repo vscode) $(pkg_from_repo tailscale)
 
 # ──────────────────────────────────────────────────────────────────────────────
 log_step "WPS Office — descarga .deb"
@@ -410,12 +423,70 @@ else
 fi
 
 # ──────────────────────────────────────────────────────────────────────────────
-log_step "OpenTabletDriver — habilitando servicio de usuario"
+log_step "OpenTabletDriver — instalación desde GitHub releases"
 # ──────────────────────────────────────────────────────────────────────────────
-if cmd_exists otd || dpkg -l opentabletdriver 2>/dev/null | grep -q '^ii'; then
-    systemctl --user enable --now opentabletdriver 2>/dev/null || log_warn "No se pudo habilitar opentabletdriver (¿sesión de usuario sin systemd?)"
+# OTD ya no provee un repo apt upstream. Descargamos el tarball binario desde
+# GitHub releases y lo dejamos en /opt/opentabletdriver. La activación del
+# servicio de usuario se hace en el bloque siguiente.
+OTD_INSTALL_DIR="/opt/opentabletdriver"
+OTD_BIN_LINK="/usr/local/bin/otd"
+if [ -x "$OTD_BIN_LINK" ] || [ -d "$OTD_INSTALL_DIR" ]; then
+    log_ok "OpenTabletDriver ya instalado en $OTD_INSTALL_DIR"
 else
-    log_info "OpenTabletDriver no instalado (skip)"
+    log_info "Descargando OpenTabletDriver desde GitHub releases..."
+    otd_tmp=$(mktemp -d)
+    # Tomamos la versión más reciente del release "stable" de GitHub API
+    otd_release_url=$(curl -fsSL https://api.github.com/repos/OpenTabletDriver/OpenTabletDriver/releases/latest \
+        | grep -E '"browser_download_url".*linux-x64_binary.tar.gz"' \
+        | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+    if [ -z "$otd_release_url" ]; then
+        log_error "No se pudo obtener URL de release desde GitHub API"
+    else
+        log_info "Descargando $(basename "$otd_release_url")..."
+        if curl -fsSL -o "$otd_tmp/otd.tar.gz" "$otd_release_url"; then
+            log_info "Extrayendo a $OTD_INSTALL_DIR..."
+            sudo mkdir -p "$OTD_INSTALL_DIR"
+            sudo tar -xzf "$otd_tmp/otd.tar.gz" -C "$OTD_INSTALL_DIR" --strip-components=1
+            # Symlink del binario
+            if [ -x "$OTD_INSTALL_DIR/OpenTabletDriver.UX.Gtk" ]; then
+                sudo ln -sf "$OTD_INSTALL_DIR/OpenTabletDriver.UX.Gtk" "$OTD_BIN_LINK"
+                log_ok "OpenTabletDriver instalado (binario: $OTD_BIN_LINK)"
+            elif [ -x "$OTD_INSTALL_DIR/OpenTabletDriver" ]; then
+                sudo ln -sf "$OTD_INSTALL_DIR/OpenTabletDriver" "$OTD_BIN_LINK"
+                log_ok "OpenTabletDriver instalado (binario: $OTD_BIN_LINK)"
+            else
+                log_warn "Binario de OTD no encontrado en $OTD_INSTALL_DIR — revisá el tarball"
+                ls -la "$OTD_INSTALL_DIR" 2>/dev/null | head -10
+            fi
+        else
+            log_error "Descarga de OTD falló. Si tenés tablet Huion, instalá manualmente desde"
+            log_error "  https://opentabletdriver.net/Wiki/Install/Linux"
+        fi
+    fi
+    rm -rf "$otd_tmp"
+
+    # Crear servicio systemd de usuario para el daemon de OTD
+    if [ -x "$OTD_BIN_LINK" ]; then
+        mkdir -p "$HOME/.config/systemd/user"
+        cat > "$HOME/.config/systemd/user/opentabletdriver.service" << EOF
+[Unit]
+Description=OpenTabletDriver Daemon
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=$OTD_INSTALL_DIR/OpenTabletDriver.Daemon
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target
+EOF
+        systemctl --user daemon-reload 2>/dev/null || true
+        systemctl --user enable --now opentabletdriver.service 2>/dev/null \
+            && log_ok "Servicio de usuario opentabletdriver habilitado e iniciado" \
+            || log_info "Servicio creado pero no activado (correló manualmente: systemctl --user enable --now opentabletdriver.service)"
+    fi
 fi
 
 # ──────────────────────────────────────────────────────────────────────────────

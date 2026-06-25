@@ -222,19 +222,20 @@ case "$DISTRO_FAMILY" in
         else
             fail "apt no encontrado"
         fi
-        # Repos externos firmados
-        for repo in docker brave vscode tailscale opentabletdriver; do
+        # Repos externos firmados (OTD se instala por tarball, no por apt)
+        for repo in docker brave vscode tailscale; do
             if [ -f "/etc/apt/sources.list.d/${repo}.list" ] && [ -f "/etc/apt/keyrings/${repo}.gpg" ]; then
                 ok "Repo externo: $repo"
             else
-                # OTD puede no estar en derivados de Debian
-                if [ "$repo" = "opentabletdriver" ] && [ "$DISTRO_ID" != "debian" ]; then
-                    skip "Repo externo: $repo (no soportado en $DISTRO_NAME)"
-                else
-                    warn "Repo externo: $repo (sources.list o keyring faltante)"
-                fi
+                warn "Repo externo: $repo (sources.list o keyring faltante)"
             fi
         done
+        # OpenTabletDriver: instalado por tarball binario, no por apt
+        if [ -x /usr/local/bin/otd ] || [ -d /opt/opentabletdriver ]; then
+            ok "OpenTabletDriver (tarball en /opt/opentabletdriver)"
+        else
+            warn "OpenTabletDriver no instalado (¿tenés tablet Huion?)"
+        fi
         ;;
 esac
 

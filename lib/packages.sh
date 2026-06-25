@@ -97,12 +97,14 @@ declare -A PKG_DEBIAN=(
 # Formato: "nombre|keyring_url|keyring_path"
 # install_debian.sh luego arma la línea del repo por nombre (con case),
 # porque la forma del repo varía bastante entre proyectos.
+#
+# NOTA: OpenTabletDriver NO está acá porque su repo apt upstream (opentabletdriver.net)
+#       está descontinuado. Se instala via tarball binario desde GitHub releases.
 PKG_DEBIAN_EXTERNAL_REPOS=(
     "docker|https://download.docker.com/linux/debian/gpg|/etc/apt/keyrings/docker.gpg"
     "brave|https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg|/etc/apt/keyrings/brave-browser.gpg"
-    "vscode|https://packages.microsoft.com/keys/microsoft-archive-keyring.gpg|/etc/apt/keyrings/microsoft.gpg"
-    "tailscale|https://pkgs.tailscale.com/stable/debian/tailscale-archive-keyring.gpg|/etc/apt/keyrings/tailscale.gpg"
-    "opentabletdriver|https://opentabletdriver.net/OldTuxedo/release/deb/OtdRelease.asc|/etc/apt/keyrings/opentabletdriver.gpg"
+    "vscode|https://packages.microsoft.com/keys/microsoft.asc|/etc/apt/keyrings/microsoft.gpg"
+    "tailscale|https://pkgs.tailscale.com/stable/debian/trixie.noarmor.gpg|/etc/apt/keyrings/tailscale.gpg"
 )
 
 # Paquetes de los repos externos — familia Debian
@@ -111,7 +113,6 @@ declare -A PKG_DEBIAN_FROM_REPO=(
     [brave]="brave-browser"
     [vscode]="code"
     [tailscale]="tailscale"
-    [opentabletdriver]="opentabletdriver"
 )
 
 # Paquetes de flatpak — ambas familias
