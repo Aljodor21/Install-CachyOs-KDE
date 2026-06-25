@@ -361,7 +361,7 @@ run_post_install_wizard() {
     printf "${_C_BOLD}  ├─────┼──────────────────────────────┼──────────┤${_C_NC}\n"
     printf "  │ %-3s │ %-30s │ ${_C_GREEN}%-8s${_C_NC} │\n" "1" "Git (user.name/email)" "$(git_is_configured && echo 'OK' || echo 'PEND')"
     printf "  │ %-3s │ %-30s │ ${_C_GREEN}%-8s${_C_NC} │\n" "2" "GitHub CLI (gh auth)" "$(gh_is_authed 2>/dev/null && echo 'OK' || echo 'PEND')"
-    printf "  │ %-3s │ %-30s │ ${_C_GREEN}%-8s${_C_NC} │\n" "3" "Zsh como shell default" "$([ "$(which zsh 2>/dev/null)" = "$(getent passwd $USER 2>/dev/null | cut -d: -f7)" ] && echo 'OK' || echo 'PEND')"
+    printf "  │ %-3s │ %-30s │ ${_C_GREEN}%-8s${_C_NC} │\n" "3" "Zsh como shell default" "$(getent passwd "$USER" 2>/dev/null | cut -d: -f7 | grep -q 'zsh' && echo 'OK' || echo 'PEND')"
     printf "  │ %-3s │ %-30s │ ${_C_GREEN}%-8s${_C_NC} │\n" "4" "NVM default Node LTS" "$([ -s "$HOME/.nvm/versions/node"/*/bin/node ] 2>/dev/null && echo 'OK' || echo 'PEND')"
     printf "  │ %-3s │ %-30s │ ${_C_GREEN}%-8s${_C_NC} │\n" "5" "Docker (sin sudo)" "$(id -nG "$USER" 2>/dev/null | grep -qw docker && echo 'OK' || echo 'PEND')"
     printf "  │ %-3s │ %-30s │ ${_C_GREEN}%-8s${_C_NC} │\n" "6" "Tailscale connect" "$(tailscale_is_up 2>/dev/null && echo 'OK' || echo 'PEND')"
