@@ -99,7 +99,7 @@ tailscale_is_up() {
 
 step_git() {
     CURRENT_STEP=1
-    log_step "Paso 1/8 — Git (nombre y correo)"
+    log_step "Paso 1/6 — Git (nombre y correo)"
 
     if git_is_configured; then
         step_skip "Git ya está configurado ($(git config --global user.name) <$(git config --global user.email)>)"
@@ -199,7 +199,7 @@ step_github() {
 
 step_zsh_default() {
     CURRENT_STEP=3
-    log_step "Paso 3/8 — Zsh como shell por defecto"
+    log_step "Paso 3/6 — Zsh como shell por defecto"
 
     if [ "$SHELL" = "$(which zsh 2>/dev/null)" ]; then
         step_skip "Zsh ya es tu shell por defecto"
@@ -233,7 +233,7 @@ step_zsh_default() {
 
 step_nvm_default() {
     CURRENT_STEP=4
-    log_step "Paso 4/8 — NVM (fijar Node LTS como default)"
+    log_step "Paso 4/6 — NVM (fijar Node LTS como default)"
 
     export NVM_DIR="$HOME/.nvm"
     if [ ! -s "$NVM_DIR/nvm.sh" ]; then
@@ -265,7 +265,7 @@ step_nvm_default() {
 
 step_docker() {
     CURRENT_STEP=5
-    log_step "Paso 5/8 — Docker (verificar que funciona sin sudo)"
+    log_step "Paso 5/6 — Docker (verificar que funciona sin sudo)"
 
     if ! cmd_exists docker; then
         step_skip "Docker no está instalado"
@@ -292,7 +292,7 @@ step_docker() {
 
 step_tailscale() {
     CURRENT_STEP=5
-    log_step "Paso 5/6 — Tailscale (conectar a tu red)"
+    log_step "Paso 6/6 — Tailscale (conectar a tu red)"
 
     if ! cmd_exists tailscale; then
         step_skip "Tailscale no está instalado"
@@ -352,7 +352,22 @@ run_post_install_wizard() {
     step_tailscale
 
     echo ""
-    log_step "Resumen"
+    log_step "Resumen del wizard"
+    echo ""
+
+    # Tabla resumen
+    printf "${_C_BOLD}  ┌─────┬──────────────────────────────┬──────────┐${_C_NC}\n"
+    printf "${_C_BOLD}  │ %-3s │ %-30s │ %-8s │${_C_NC}\n" "Paso" "Configuración" "Estado"
+    printf "${_C_BOLD}  ├─────┼──────────────────────────────┼──────────┤${_C_NC}\n"
+    printf "  │ %-3s │ %-30s │ ${_C_GREEN}%-8s${_C_NC} │\n" "1" "Git (user.name/email)" "$(git_is_configured && echo 'OK' || echo 'PEND')"
+    printf "  │ %-3s │ %-30s │ ${_C_GREEN}%-8s${_C_NC} │\n" "2" "GitHub CLI (gh auth)" "$(gh_is_authed 2>/dev/null && echo 'OK' || echo 'PEND')"
+    printf "  │ %-3s │ %-30s │ ${_C_GREEN}%-8s${_C_NC} │\n" "3" "Zsh como shell default" "$([ "$(which zsh 2>/dev/null)" = "$(getent passwd $USER 2>/dev/null | cut -d: -f7)" ] && echo 'OK' || echo 'PEND')"
+    printf "  │ %-3s │ %-30s │ ${_C_GREEN}%-8s${_C_NC} │\n" "4" "NVM default Node LTS" "$([ -s "$HOME/.nvm/versions/node"/*/bin/node ] 2>/dev/null && echo 'OK' || echo 'PEND')"
+    printf "  │ %-3s │ %-30s │ ${_C_GREEN}%-8s${_C_NC} │\n" "5" "Docker (sin sudo)" "$(id -nG "$USER" 2>/dev/null | grep -qw docker && echo 'OK' || echo 'PEND')"
+    printf "  │ %-3s │ %-30s │ ${_C_GREEN}%-8s${_C_NC} │\n" "6" "Tailscale connect" "$(tailscale_is_up 2>/dev/null && echo 'OK' || echo 'PEND')"
+    printf "${_C_BOLD}  └─────┴──────────────────────────────┴──────────┘${_C_NC}\n"
+    echo ""
+
     log_info "Log completo: $LOG_FILE"
     log_info "Claude y opencode son siempre manuales: corré 'claude' / 'opencode' cuando quieras."
     log_to_file "===== wizard completed (OK: $PASS_COUNT, SKIP: $SKIP_COUNT, WARN: $WARN_COUNT) ====="
