@@ -32,7 +32,7 @@ chmod +x install.sh install_arch.sh validate_install.sh fix_post_install.sh
 
 ### 3. Wizard de configuración inicial (auto)
 
-Al final del install, se lanza `lib/post_install_config.sh`. Son 8 pasos:
+Al final del install, se lanza `lib/post_install_config.sh`. Son 7 pasos:
 
 - [ ] Git (nombre + email + config global)
 - [ ] GitHub CLI (`gh auth login --web`)
@@ -40,10 +40,12 @@ Al final del install, se lanza `lib/post_install_config.sh`. Son 8 pasos:
 - [ ] NVM default → Node LTS
 - [ ] Docker test (`docker run hello-world`)
 - [ ] Tailscale connect
-- [ ] Claude Code CLI auth
-- [ ] opencode auth
+- [ ] opencode auth (instrucciones; siempre manual)
 
 Enter = sí. Decí `n` para skipear.
+
+> Nota: Claude Code CLI se instala con el script pero la auth es 100% manual.
+> Después de instalar, corré `claude` y seguí las instrucciones.
 
 ### 4. Reiniciar sesión (importante)
 
@@ -119,7 +121,7 @@ chmod +x install.sh install_debian.sh validate_install.sh fix_post_install.sh
 
 ### 4. Wizard de configuración inicial (auto)
 
-Mismo wizard de 8 pasos (ver Camino A, sección 3).
+Mismo wizard de 7 pasos (ver Camino A, sección 3).
 
 ### 5. Reiniciar sesión
 (Logout + login, para que `docker`, `libvirt` y `zsh` apliquen.)
@@ -214,8 +216,10 @@ Mismo wizard de 8 pasos (ver Camino A, sección 3).
 | 4 | NVM default | Fija Node LTS como default | No toca NVM |
 | 5 | Docker test | `docker run hello-world` | No prueba |
 | 6 | Tailscale | `sudo tailscale up` (abre navegador) | Lo corrés manual |
-| 7 | Claude | `claude` (abre navegador) | Lo corrés manual |
-| 8 | opencode | `opencode` (abre navegador) | Lo corrés manual |
+| 7 | opencode | Muestra instrucciones para `opencode` | Lo corrés manual |
+
+> Claude Code CLI NO está en el wizard. Se instala con el script pero su
+> auth es 100% manual: corré `claude` cuando quieras y seguí las instrucciones.
 
 > Si interrumpís con Ctrl+C, el wizard marca "interrupted at step N" en el log
 > y sale limpio. Lo podés re-ejecutar cuando quieras con `post-install-config`.

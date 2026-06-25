@@ -320,42 +320,9 @@ step_tailscale() {
     fi
 }
 
-step_claude() {
-    CURRENT_STEP=7
-    log_step "Paso 7/8 — Claude Code CLI (autenticación)"
-
-    if ! cmd_exists claude; then
-        step_skip "Claude Code CLI no está instalado"
-        return 0
-    fi
-
-    if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
-        step_skip "Claude Code CLI: ANTHROPIC_API_KEY ya está seteada en el entorno"
-        return 0
-    fi
-
-    if ! confirm "¿Autenticar Claude Code CLI ahora? (abre el navegador)"; then
-        step_skip "Claude — cancelado por el usuario"
-        return 0
-    fi
-
-    log_info "Iniciando Claude (abrirá navegador)..."
-    # claude sin args entra en modo interactivo. Mandamos /exit automático.
-    if echo "/exit" | timeout 30 claude 2>/dev/null; then
-        step_done "Claude Code CLI autenticado"
-    else
-        # Si falla el timeout, igual puede haberse autenticado. Verificamos config.
-        if [ -f "$HOME/.claude.json" ] || [ -d "$HOME/.claude" ]; then
-            step_done "Claude Code CLI: archivos de config presentes (asumimos auth OK)"
-        else
-            log_warn "Claude no se autenticó. Corré 'claude' manualmente."
-        fi
-    fi
-}
-
 step_opencode() {
-    CURRENT_STEP=8
-    log_step "Paso 8/8 — opencode (autenticación)"
+    CURRENT_STEP=7
+    log_step "Paso 7/7 — opencode (autenticación)"
 
     if ! cmd_exists opencode; then
         step_skip "opencode no está instalado"
@@ -369,21 +336,17 @@ step_opencode() {
         return 0
     fi
 
-    if ! confirm "¿Autenticar opencode ahora? (abre el navegador)"; then
-        step_skip "opencode — cancelado por el usuario"
+    # opencode auth SIEMPRE requiere interacción del usuario.
+    if ! confirm "¿Querés ver las instrucciones para autenticar opencode?"; then
+        step_skip "opencode — instrucciones no mostradas. Para autenticar después: corré 'opencode'"
         return 0
     fi
 
-    log_info "Iniciando opencode (abrirá navegador)..."
-    if echo "/exit" | timeout 30 opencode 2>/dev/null; then
-        step_done "opencode autenticado"
-    else
-        if [ -d "$HOME/.local/share/opencode" ] || [ -d "$HOME/.config/opencode" ]; then
-            step_done "opencode: archivos de config presentes (asumimos auth OK)"
-        else
-            log_warn "opencode no se autenticó. Corré 'opencode' manualmente."
-        fi
-    fi
+    log_info "Para autenticar opencode:"
+    log_info "  1. Corré: opencode"
+    log_info "  2. Te va a pedir que abras un browser y completes el login"
+    log_info "  3. Después de loguearte, volvé a la terminal y seguí"
+    step_skip "opencode: autenticá manualmente con 'opencode'"
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -398,7 +361,6 @@ run_post_install_wizard() {
         log_warn "  - Git:    git config --global user.name \"Tu Nombre\" && git config --global user.email \"tu@email\""
         log_warn "  - GitHub: gh auth login --git-protocol ssh --web"
         log_warn "  - Tailscale: sudo tailscale up"
-        log_warn "  - Claude: claude"
         log_warn "  - opencode: opencode"
         log_to_file "SKIP: no TTY, wizard abortado"
         return 0
@@ -412,7 +374,6 @@ run_post_install_wizard() {
     step_nvm_default
     step_docker
     step_tailscale
-    step_claude
     step_opencode
 
     echo ""

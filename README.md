@@ -31,8 +31,8 @@ Detecta tu distro desde `/etc/os-release` y aplica uno de dos scripts:
 | `cachyos`, `arch`, `manjaro`, `endeavouros`, `garuda`, ... | `install_arch.sh` | `pacman` + `yay` (AUR) |
 | `debian`, `ubuntu`, `linuxmint`, `pop`, `kde-neon`, ... | `install_debian.sh` | `apt` + repos `.deb` externos firmados |
 
-Después corre el wizard de configuración inicial (8 pasos) que te pregunta por
-Git, GitHub, Docker, Tailscale, Claude, opencode, etc.
+Después corre el wizard de configuración inicial (7 pasos) que te pregunta por
+Git, GitHub, Docker, Tailscale y opencode.
 
 ---
 
@@ -137,7 +137,7 @@ chmod +x install.sh install_arch.sh install_debian.sh validate_install.sh fix_po
 ## Configuración inicial automática (wizard)
 
 Al final del install corre `lib/post_install_config.sh` (también disponible como
-`post-install-config` en `~/.local/bin/`). Son **8 pasos opcionales**:
+`post-install-config` en `~/.local/bin/`). Son **7 pasos opcionales**:
 
 | # | Paso | Qué hace |
 |---|---|---|
@@ -147,8 +147,7 @@ Al final del install corre `lib/post_install_config.sh` (también disponible com
 | 4 | NVM default | `nvm alias default node && nvm use --lts` |
 | 5 | Docker test | `docker run --rm hello-world` con `sg docker` |
 | 6 | Tailscale | `sudo tailscale up` (abre navegador) |
-| 7 | Claude | `claude` (abre navegador) |
-| 8 | opencode | `opencode` (abre navegador) |
+| 7 | opencode | Muestra instrucciones para autenticar (siempre manual) |
 
 Cada paso:
 - Es **opcional** (Enter = sí, `n` = skip).
