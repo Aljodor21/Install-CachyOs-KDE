@@ -414,19 +414,28 @@ log_step "Flatpak — Spotify"
 if ! cmd_exists flatpak; then
     log_warn "flatpak no está disponible, saltando Spotify."
 else
-    # Usuario al grupo 'flatpak' (necesario para instalar apps sin sudo).
-    # Sin esto, flatpak tira 'Deploy not allowed for user' en sesiones sin polkit agent.
-    if ! id -nG "$USER" 2>/dev/null | grep -qw flatpak; then
-        log_info "Agregando $USER al grupo 'flatpak'..."
-        sudo usermod -aG flatpak "$USER"
-    fi
-
     # Agregar Flathub si no está
     if ! flatpak remote-list 2>/dev/null | grep -q flathub; then
         log_info "Agregando Flathub remote..."
         sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
     fi
-    flatpak install -y flathub com.spotify.Client 2>/dev/null || log_warn "No se pudo instalar Spotify"
+
+    # Spotify: instalar con sudo. flatpak install necesita 'Deploy' en /var/lib/flatpak,
+    # que sin polkit agent corriendo (típico en VMs/TTY) falla con:
+    #   'Flatpak system operation Deploy not allowed for user'
+    # En sesiones gráficas con KDE + polkit agent, podría andar sin sudo.
+    # Después de la install inicial, el usuario puede instalar flatpaks normales sin sudo.
+    if flatpak list 2>/dev/null | grep -q "com.spotify.Client"; then
+        log_ok "Spotify (Flatpak) ya está instalado"
+    else
+        log_info "Instalando Spotify via flatpak (puede pedir sudo)..."
+        if sudo flatpak install -y flathub com.spotify.Client 2>&1 | tail -15; then
+            log_ok "Spotify instalado"
+        else
+            log_warn "No se pudo instalar Spotify. Reintentá manualmente después:"
+            log_warn "  sudo flatpak install -y flathub com.spotify.Client"
+        fi
+    fi
 fi
 
 # ──────────────────────────────────────────────────────────────────────────────
