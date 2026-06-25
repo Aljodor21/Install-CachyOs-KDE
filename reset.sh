@@ -412,7 +412,10 @@ fi
 log_step "10/11 — Flatpak (Spotify)"
 if cmd_exists flatpak && flatpak list 2>/dev/null | grep -q "com.spotify.Client"; then
     if ask_action "¿Desinstalar Spotify (Flatpak)?"; then
-        run_cmd flatpak uninstall -y com.spotify.Client
+        # Sin polkit agent (típico en VM/TTY) flatpak uninstall tira
+        # 'Uninstall not allowed for user'. Usar sudo.
+        run_cmd sudo flatpak uninstall -y com.spotify.Client \
+            || log_warn "No se pudo desinstalar Spotify. Probá manualmente: sudo flatpak uninstall com.spotify.Client"
     fi
 else
     log_info "Spotify Flatpak no instalado, skip."
