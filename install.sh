@@ -62,17 +62,33 @@ case "$DISTRO_FAMILY" in
         ;;
 esac
 
-# Nota: NO lanzamos el wizard al final del install. El usuario lo corre
-# manualmente con 'post-install-config' si quiere configurar git/zsh/nvm.
-# Los auth (GitHub CLI, Tailscale, opencode, claude) son siempre manuales.
+# Wizard de configuración inicial (6 pasos locales, sin opencode/claude).
+echo ""
+echo "╔════════════════════════════════════════════════════════════════╗"
+echo "║  Lanzando wizard de configuración inicial                     ║"
+echo "║  (6 pasos: Git, GitHub, Zsh, NVM, Docker, Tailscale)         ║"
+echo "║  Claude y opencode NO se incluyen: son siempre manuales     ║"
+echo "╚════════════════════════════════════════════════════════════════╝"
+echo ""
 
-# Instalar el wrapper 'post-install-config' en ~/.local/bin para uso opcional
+if [ -t 0 ]; then
+    # shellcheck source=lib/post_install_config.sh
+    source "$SCRIPT_DIR/lib/post_install_config.sh"
+    run_post_install_wizard
+else
+    echo "[SKIP] No es TTY interactivo. Para configurar después, corré:"
+    echo "       post-install-config"
+    echo "       (o bash $SCRIPT_DIR/lib/post_install_config.sh)"
+fi
+
+# Instalar el wrapper 'post-install-config' en ~/.local/bin para re-ejecutar
 mkdir -p "$HOME/.local/bin"
 cat > "$HOME/.local/bin/post-install-config" << EOF
 #!/usr/bin/env bash
-# Wizard opcional de configuración local post-install.
-# Cubre: git user.name/email, zsh como shell default, NVM default,
-#        docker test. NO toca auth (eso es manual).
+# Wizard de configuración inicial post-install.
+# Cubre: git user.name/email, GitHub CLI auth, zsh shell default,
+#        NVM default, docker test, Tailscale connect.
+# NO incluye Claude/opencode (esos son manuales: corré 'claude' / 'opencode').
 exec bash "$SCRIPT_DIR/lib/post_install_config.sh" "\$@"
 EOF
 chmod +x "$HOME/.local/bin/post-install-config"
@@ -80,7 +96,7 @@ chmod +x "$HOME/.local/bin/post-install-config"
 # Asegurar que ~/.local/bin esté en PATH
 if ! echo "$PATH" | grep -q "$HOME/.local/bin"; then
     echo ""
-    echo "OPCIONAL: para usar 'post-install-config' agregá a tu ~/.bashrc o ~/.zshrc:"
+    echo "OPCIONAL: para usar 'post-install-config' desde cualquier lado, agregá a tu ~/.bashrc o ~/.zshrc:"
     echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
 fi
 
