@@ -171,7 +171,7 @@ echo "─── Virtualización (KVM/QEMU/libvirt) ────"
 check_cmd "QEMU"             qemu-system-x86_64
 check_cmd "libvirt client"   virsh
 check_cmd "virt-manager"     virt-manager
-check_service "libvirtd"      libvirtd
+check_socket_service "libvirtd" libvirtd libvirtd.socket libvirtd-ro.socket libvirtd-admin.socket
 check_group "libvirt"         libvirt
 
 if [ -e /dev/kvm ]; then

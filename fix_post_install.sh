@@ -65,12 +65,26 @@ fi
 # ──────────────────────────────────────────────────────────────────────────────
 log_step "Servicios systemd"
 # ──────────────────────────────────────────────────────────────────────────────
-for service in docker tailscaled libvirtd bluetooth; do
+for service in docker tailscaled; do
     if ! systemctl is-active --quiet "$service" 2>/dev/null; then
         log_warn "Servicio '$service' no está activo. Habilitando..."
         sudo systemctl enable --now "$service" || log_error "  No se pudo habilitar $service"
     else
         log_ok "Servicio '$service' activo"
+    fi
+done
+
+# libvirtd y bluetooth usan socket activation: enable --now activa los sockets
+# pero el daemon solo arranca cuando hay clientes. Para que el check is-active
+# pase, también hacemos un start explicito.
+for service in libvirtd bluetooth; do
+    if ! systemctl is-active --quiet "$service" 2>/dev/null \
+       && ! systemctl is-active --quiet "${service}.socket" 2>/dev/null; then
+        log_warn "Servicio '$service' no está activo. Habilitando..."
+        sudo systemctl enable --now "$service" || true
+        sudo systemctl start "$service" 2>/dev/null || true
+    else
+        log_ok "Servicio '$service' activo (o socket activo)"
     fi
 done
 

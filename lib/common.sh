@@ -159,6 +159,27 @@ check_service() {
     fi
 }
 
+# Verifica que un servicio esté funcional. Acepta socket-activated services
+# (libvirtd, bluetooth, etc.) donde el daemon solo corre cuando hay clientes.
+# Retorna 0 (success) si CUALQUIERA de los siguientes está activo:
+#   - el servicio .service
+#   - cualquiera de sus sockets asociados (.socket)
+#   check_socket_service "label" servicio [socket1] [socket2] ...
+check_socket_service() {
+    local label="$1"
+    local service="$2"
+    shift 2
+    local -a units=("$service" "$@")
+    for unit in "${units[@]}"; do
+        if systemctl is-active --quiet "$unit" 2>/dev/null; then
+            ok "$label — activo (via $unit)"
+            return 0
+        fi
+    done
+    fail "$label — ni el servicio ni sus sockets están activos"
+    return 1
+}
+
 # Verifica que el usuario esté en un grupo.
 #   check_group "label" nombre_grupo
 check_group() {
