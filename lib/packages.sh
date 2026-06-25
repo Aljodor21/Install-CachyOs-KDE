@@ -41,6 +41,7 @@ declare -A PKG_ARCH=(
     [docker]="docker docker-compose"
     [obs]="obs-studio"
     [java17]="jdk17-openjdk"
+    [fastfetch]="fastfetch"
     # Virtualización KVM/QEMU
     [qemu]="qemu-full"
     [libvirt]="libvirt virt-manager virt-viewer dnsmasq vde2 bridge-utils ebtables iptables-nft swtpm"
@@ -82,6 +83,7 @@ declare -A PKG_DEBIAN=(
     [ffmpeg]="ffmpeg"
     [obs]="obs-studio"
     [java17]="openjdk-17-jdk"
+    [fastfetch]="fastfetch"
     # libfuse2 para DaVinci Resolve AppImage/.run
     [libfuse]="libfuse2"
     # Virtualización KVM/QEMU

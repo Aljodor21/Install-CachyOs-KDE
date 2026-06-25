@@ -74,3 +74,9 @@ fi
 
 # Powerlevel10k
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+
+# fastfetch al abrir terminal interactiva (una sola vez por sesión, no en scripts)
+if [[ -o interactive ]] && command -v fastfetch &>/dev/null && [ -z "$FASTFETCH_SHOWN" ]; then
+    export FASTFETCH_SHOWN=1
+    fastfetch
+fi

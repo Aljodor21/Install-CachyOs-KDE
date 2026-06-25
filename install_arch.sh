@@ -75,7 +75,7 @@ pacman_install() {
 pacman_install $(
     for key in git github-cli python kitty flatpak vlc codecs base-devel zsh \
                nerd-font cifs-utils screenshot audio system-tools bluetooth \
-               gtk-theme ffmpeg docker obs java17 qemu libvirt ovmf; do
+               gtk-theme ffmpeg docker obs java17 fastfetch qemu libvirt ovmf; do
         pkg_for "$key"
     done
 )
@@ -232,6 +232,61 @@ log_info "  1. sudo pacman -S --needed fuse2"
 log_info "  2. Descargar .run desde https://www.blackmagicdesign.com/products/davinciresolve"
 log_info "  3. chmod +x DaVinci_Resolve_*.run && ./DaVinci_Resolve_*.run"
 echo ""
+
+# ──────────────────────────────────────────────────────────────────────────────
+log_step "fastfetch — config personalizado"
+# ──────────────────────────────────────────────────────────────────────────────
+# Instala fastfetch y escribe una config linda para que aparezca al abrir terminal.
+if cmd_exists fastfetch; then
+    mkdir -p "$HOME/.config/fastfetch"
+    if [ ! -f "$HOME/.config/fastfetch/config.jsonc" ]; then
+        cat > "$HOME/.config/fastfetch/config.jsonc" << 'FFEOF'
+{
+    "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+    "logo": {
+        "type": "auto",
+        "padding": {
+            "top": 1,
+            "left": 3
+        }
+    },
+    "display": {
+        "separator": "  ",
+        "color": {
+            "title": "cyan",
+            "key": "blue",
+            "value": "white"
+        }
+    },
+    "modules": [
+        "title",
+        "separator",
+        "os",
+        "host",
+        "kernel",
+        "uptime",
+        "packages",
+        "shell",
+        "display",
+        "de",
+        "wm",
+        "terminal",
+        "cpu",
+        "gpu",
+        "memory",
+        "disk",
+        "local-ip",
+        "colors"
+    ]
+}
+FFEOF
+        log_ok "fastfetch config creado en ~/.config/fastfetch/config.jsonc"
+    else
+        log_info "fastfetch config ya existe, skip"
+    fi
+else
+    log_warn "fastfetch no instalado (skip config)"
+fi
 
 # ──────────────────────────────────────────────────────────────────────────────
 log_step "Instalación completada"
