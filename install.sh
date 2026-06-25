@@ -62,28 +62,17 @@ case "$DISTRO_FAMILY" in
         ;;
 esac
 
-# Wizard de configuración inicial (si hay TTY)
-echo ""
-echo "╔════════════════════════════════════════════════════════════════╗"
-echo "║  Lanzando wizard de configuración inicial                     ║"
-echo "╚════════════════════════════════════════════════════════════════╝"
-echo ""
+# Nota: NO lanzamos el wizard al final del install. El usuario lo corre
+# manualmente con 'post-install-config' si quiere configurar git/zsh/nvm.
+# Los auth (GitHub CLI, Tailscale, opencode, claude) son siempre manuales.
 
-if [ -t 0 ]; then
-    # shellcheck source=lib/post_install_config.sh
-    source "$SCRIPT_DIR/lib/post_install_config.sh"
-    run_post_install_wizard
-else
-    echo "[SKIP] No es TTY interactivo. Para configurar después, corré:"
-    echo "       post-install-config"
-    echo "       (o bash $SCRIPT_DIR/lib/post_install_config.sh)"
-fi
-
-# Instalar el wrapper en ~/.local/bin para re-ejecutar el wizard
+# Instalar el wrapper 'post-install-config' en ~/.local/bin para uso opcional
 mkdir -p "$HOME/.local/bin"
 cat > "$HOME/.local/bin/post-install-config" << EOF
 #!/usr/bin/env bash
-# Wrapper para re-ejecutar el wizard de configuración inicial
+# Wizard opcional de configuración local post-install.
+# Cubre: git user.name/email, zsh como shell default, NVM default,
+#        docker test. NO toca auth (eso es manual).
 exec bash "$SCRIPT_DIR/lib/post_install_config.sh" "\$@"
 EOF
 chmod +x "$HOME/.local/bin/post-install-config"
@@ -91,9 +80,8 @@ chmod +x "$HOME/.local/bin/post-install-config"
 # Asegurar que ~/.local/bin esté en PATH
 if ! echo "$PATH" | grep -q "$HOME/.local/bin"; then
     echo ""
-    echo "NOTA: agregá esto a tu ~/.zshrc o ~/.bashrc:"
+    echo "OPCIONAL: para usar 'post-install-config' agregá a tu ~/.bashrc o ~/.zshrc:"
     echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
-    echo "Después podés correr: post-install-config"
 fi
 
 echo ""

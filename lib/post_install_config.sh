@@ -92,9 +92,10 @@ tailscale_is_up() {
     tailscale status &>/dev/null && tailscale status --json 2>/dev/null | grep -q '"BackendState": "Running"'
 }
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Pasos del wizard
-# ──────────────────────────────────────────────────────────────────────────────
+# NOTA: Este wizard NO incluye pasos de autenticación (nada de browser auth).
+# Auth de GitHub CLI, Tailscale, Claude, opencode los maneja el usuario
+# manualmente con los comandos gh/sudo tailscale/claude/opencode cuando quiera.
+# El wizard solo cubre config local: git, zsh default, nvm default, docker test.
 
 step_git() {
     CURRENT_STEP=1
@@ -166,7 +167,7 @@ GIEOF
 
 step_github() {
     CURRENT_STEP=2
-    log_step "Paso 2/8 — GitHub CLI (autenticación)"
+    log_step "Paso 2/6 — GitHub CLI (autenticación)"
 
     if ! cmd_exists gh; then
         step_skip "GitHub CLI (gh) no está instalado"
@@ -290,8 +291,8 @@ step_docker() {
 }
 
 step_tailscale() {
-    CURRENT_STEP=6
-    log_step "Paso 6/8 — Tailscale (conectar a tu red)"
+    CURRENT_STEP=5
+    log_step "Paso 5/6 — Tailscale (conectar a tu red)"
 
     if ! cmd_exists tailscale; then
         step_skip "Tailscale no está instalado"
@@ -320,34 +321,9 @@ step_tailscale() {
     fi
 }
 
-step_opencode() {
-    CURRENT_STEP=7
-    log_step "Paso 7/7 — opencode (autenticación)"
-
-    if ! cmd_exists opencode; then
-        step_skip "opencode no está instalado"
-        return 0
-    fi
-
-    # opencode guarda su config en ~/.local/share/opencode/ o ~/.config/opencode/
-    # Si ya existe, asumimos autenticado.
-    if [ -d "$HOME/.local/share/opencode" ] || [ -d "$HOME/.config/opencode" ]; then
-        step_skip "opencode ya está configurado"
-        return 0
-    fi
-
-    # opencode auth SIEMPRE requiere interacción del usuario.
-    if ! confirm "¿Querés ver las instrucciones para autenticar opencode?"; then
-        step_skip "opencode — instrucciones no mostradas. Para autenticar después: corré 'opencode'"
-        return 0
-    fi
-
-    log_info "Para autenticar opencode:"
-    log_info "  1. Corré: opencode"
-    log_info "  2. Te va a pedir que abras un browser y completes el login"
-    log_info "  3. Después de loguearte, volvé a la terminal y seguí"
-    step_skip "opencode: autenticá manualmente con 'opencode'"
-}
+# NOTA: NO hay step_opencode ni step_claude acá. Esos auth son 100% manuales.
+# El usuario corre 'claude' / 'opencode' cuando quiera.
+# GitHub CLI y Tailscale siguen en el wizard porque tienen flujo desatendido viable.
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Ejecución del wizard
@@ -357,11 +333,11 @@ run_post_install_wizard() {
     log_to_file "===== wizard started ====="
 
     if [ ! -t 0 ]; then
-        log_warn "Wizard requiere TTY interactivo. Para configurarlo después:"
+        log_warn "Wizard requiere TTY interactivo. Para configurar a mano:"
         log_warn "  - Git:    git config --global user.name \"Tu Nombre\" && git config --global user.email \"tu@email\""
-        log_warn "  - GitHub: gh auth login --git-protocol ssh --web"
-        log_warn "  - Tailscale: sudo tailscale up"
-        log_warn "  - opencode: opencode"
+        log_warn "  - Zsh:    chsh -s \$(which zsh)"
+        log_warn "  - NVM:    source ~/.nvm/nvm.sh && nvm alias default node"
+        log_warn "  - Auth:   gh / sudo tailscale (en este wizard) | claude / opencode (manuales)"
         log_to_file "SKIP: no TTY, wizard abortado"
         return 0
     fi
@@ -374,14 +350,13 @@ run_post_install_wizard() {
     step_nvm_default
     step_docker
     step_tailscale
-    step_opencode
 
     echo ""
     log_step "Resumen"
     log_info "Log completo: $LOG_FILE"
+    log_info "Claude y opencode son siempre manuales: corré 'claude' / 'opencode' cuando quieras."
     log_to_file "===== wizard completed (OK: $PASS_COUNT, SKIP: $SKIP_COUNT, WARN: $WARN_COUNT) ====="
 
-    # Resetear trap
     trap - INT TERM
 }
 
