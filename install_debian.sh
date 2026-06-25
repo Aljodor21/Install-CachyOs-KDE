@@ -315,7 +315,10 @@ sudo systemctl enable --now docker
 sudo usermod -aG docker "$USER"
 
 sudo systemctl enable --now tailscaled
-sudo systemctl enable --now libvirtd
+# libvirtd: enable --now activa el socket pero el daemon solo se inicia
+# on-demand. Para que arranque YA, hacemos un 'start' explícito además.
+sudo systemctl enable --now libvirtd.socket libvirtd-ro.socket libvirtd-admin.socket
+sudo systemctl start libvirtd 2>/dev/null || true
 sudo usermod -aG libvirt "$USER"
 
 # Bluetooth

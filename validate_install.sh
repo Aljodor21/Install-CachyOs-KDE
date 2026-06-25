@@ -151,7 +151,7 @@ fi
 # ──────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "─── Sistema / Red ────────────────────────"
-check_cmd "Brave"            brave
+check_cmd "Brave"            "$( [ "$DISTRO_FAMILY" = "debian" ] && echo brave-browser || echo brave )"
 check_cmd "Tailscale"        tailscale
 check_service "Tailscale"    tailscaled
 
@@ -222,9 +222,22 @@ case "$DISTRO_FAMILY" in
         else
             fail "apt no encontrado"
         fi
-        # Repos externos firmados (OTD se instala por tarball, no por apt)
+        # Repos externos firmados (OTD se instala por tarball, no por apt).
+        # Los keyrings tienen nombres distintos a los repos:
+        #   docker   → docker.gpg
+        #   brave    → brave-browser.gpg
+        #   vscode   → microsoft.gpg
+        #   tailscale → tailscale.gpg
+        declare -A REPO_KEYRINGS=(
+            [docker]="/etc/apt/keyrings/docker.gpg"
+            [brave]="/etc/apt/keyrings/brave-browser.gpg"
+            [vscode]="/etc/apt/keyrings/microsoft.gpg"
+            [tailscale]="/etc/apt/keyrings/tailscale.gpg"
+        )
         for repo in docker brave vscode tailscale; do
-            if [ -f "/etc/apt/sources.list.d/${repo}.list" ] && [ -f "/etc/apt/keyrings/${repo}.gpg" ]; then
+            list_file="/etc/apt/sources.list.d/${repo}.list"
+            keyring_file="${REPO_KEYRINGS[$repo]}"
+            if [ -f "$list_file" ] && [ -f "$keyring_file" ]; then
                 ok "Repo externo: $repo"
             else
                 warn "Repo externo: $repo (sources.list o keyring faltante)"
