@@ -5,6 +5,9 @@ desde cero hasta listo para trabajar. **Funciona en familia Arch (CachyOS, Manja
 Endeavour, ...) y familia Debian (Debian puro, Ubuntu, Mint, Pop, KDE neon, ...)**.
 El entry point detecta tu distro y aplica el script correspondiente.
 
+> **Historial de cambios**: mirá [CHANGELOG.md](CHANGELOG.md) para ver todos los
+> fixes y features por versión.
+
 ---
 
 ## Tabla de contenido
