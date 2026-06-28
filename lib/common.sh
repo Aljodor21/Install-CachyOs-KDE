@@ -211,84 +211,113 @@ check_dir() {
 # iniciada).
 #   pin_apps_to_taskbar
 pin_apps_to_taskbar() {
+    log_info "Pineando apps GUI a la taskbar de KDE Plasma..."
+
+    # 1) Buscar .desktop files de las apps a pinear (siempre, para reportar)
+    local apps=(
+        "Brave:brave-browser.desktop"
+        "VS Code:code.desktop"
+        "Kitty:kitty.desktop"
+        "VLC:vlc.desktop"
+        "OBS Studio:obs.desktop"
+        "virt-manager:virt-manager.desktop"
+        "Spotify:com.spotify.Client.desktop"
+        "WPS Office:wps-office-wps.desktop"
+    )
+
+    local found_paths=()
+    local found_names=()
+    while IFS=':' read -r display_name dt_name; do
+        local found=""
+        for d in "/var/lib/flatpak/exports/share/applications" \
+                 "/usr/share/applications" \
+                 "$HOME/.local/share/applications"; do
+            if [ -f "$d/$dt_name" ]; then
+                found="$d/$dt_name"
+                break
+            fi
+        done
+        if [ -n "$found" ]; then
+            found_paths+=("$found")
+            found_names+=("$display_name")
+            log_ok "  Encontrado: $display_name → $found"
+        else
+            log_info "  No encontrado: $display_name ($dt_name) — skip"
+        fi
+    done < <(printf '%s\n' "${apps[@]}")
+
+    if [ ${#found_paths[@]} -eq 0 ]; then
+        log_warn "No se encontraron .desktop files de las apps a pinear"
+        return 0
+    fi
+
+    # 2) Decidir si pineamos o no
     local config="$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc"
 
+    # No estamos en sesion grafica?
+    if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
+        log_warn "No hay sesion grafica activa (DISPLAY y WAYLAND_DISPLAY vacios)."
+        log_warn "  Las apps SI estan instaladas pero no se pueden pinear al taskbar."
+        log_warn "  Iniciá sesion grafica KDE y corré ./install.sh de nuevo, o pinea manualmente"
+        log_warn "  (click derecho en app → 'Anclar a la taskbar')."
+        return 0
+    fi
+
     if [ ! -f "$config" ]; then
-        log_info "Panel config no existe (sesión KDE no iniciada o KDE no es el DE). Skip pin a taskbar."
+        log_warn "Panel config no existe: $config"
+        log_warn "  Posiblemente KDE Plasma nunca arranco graficamente en este usuario."
+        log_warn "  Login grafico + re-login + correr ./install.sh de nuevo pinea las apps."
         return 0
     fi
 
     if ! cmd_exists python3; then
         log_warn "python3 no encontrado, no se puede pinear a taskbar"
+        log_info "  Apps instaladas igual. Pinealas manualmente con click derecho."
         return 0
     fi
 
-    python3 << 'PYEOF'
-import os
-import re
-import sys
+    # 3) Modificar el panel config via Python
+    log_info "Modificando $config..."
 
-config_file = os.path.expanduser("~/.config/plasma-org.kde.plasma.desktop-appletsrc")
+    # Construir lista de launchers
+    local launchers_list=""
+    for p in "${found_paths[@]}"; do
+        launchers_list="${launchers_list}file://$p,"
+    done
+    launchers_list="${launchers_list%,}"
+
+    # Pasar al Python como argumento (evita problemas de quoting)
+    python3 - "$config" "$launchers_list" << 'PYEOF'
+import sys
+import re
+import os
+
+config_file = sys.argv[1]
+launchers_to_pin = sys.argv[2].split(',')
+
 with open(config_file) as f:
     content = f.read()
 
 # Encontrar el applet ID del Icon Tasks
 m = re.search(r'\[Applets\]\[(\d+)\][^\[]*?plugin=org\.kde\.icontasks', content, re.DOTALL)
 if not m:
-    print("INFO: No hay Icon Tasks applet en el panel", file=sys.stderr)
-    sys.exit(0)
+    print("ERR: No hay Icon Tasks applet en el panel", file=sys.stderr)
+    sys.exit(1)
 applet_id = m.group(1)
 
 # Encontrar el containment ID que contiene ese applet
 m2 = re.search(r'\[Containments\]\[(\d+)\][^\[]*?\[Applets\]\[' + applet_id + r'\]', content, re.DOTALL)
 if not m2:
-    print("INFO: No hay containment para el applet", file=sys.stderr)
-    sys.exit(0)
+    print("ERR: No hay containment para el applet", file=sys.stderr)
+    sys.exit(1)
 containment_id = m2.group(1)
 
-# Apps a pinear (en orden: izq a der en taskbar)
-apps = [
-    ("brave-browser", "brave-browser.desktop"),
-    ("code", "code.desktop"),
-    ("kitty", "kitty.desktop"),
-    ("vlc", "vlc.desktop"),
-    ("obs", "obs.desktop"),
-    ("virt-manager", "virt-manager.desktop"),
-    ("Spotify", "com.spotify.Client.desktop"),
-    ("WPS Office", "wps-office-wps.desktop"),
-]
-
-search_dirs = [
-    "/var/lib/flatpak/exports/share/applications",
-    "/usr/share/applications",
-    os.path.expanduser("~/.local/share/applications"),
-]
-
-launchers = []
-for name, dt in apps:
-    found = None
-    for d in search_dirs:
-        p = os.path.join(d, dt)
-        if os.path.exists(p):
-            found = p
-            break
-    if found:
-        launchers.append(f"file://{found}")
-    else:
-        print(f"  No encontrado: {dt}", file=sys.stderr)
-
-if not launchers:
-    print("INFO: No se encontraron apps para pinear", file=sys.stderr)
-    sys.exit(0)
-
-# Sección general del panel: 'Containments][N][Applets][M][General'
 section_header = f"[Containments][{containment_id}][Applets][{applet_id}][General]"
 
 # Extraer launchers existentes
 existing = []
 m3 = re.search(r'^' + re.escape(section_header) + r'\s*$', content, re.MULTILINE)
 if m3:
-    # Encontrar la sección y leer sus claves hasta el próximo [
     start = m3.end()
     next_section = re.search(r'^\[', content[start:], re.MULTILINE)
     end = start + next_section.start() if next_section else len(content)
@@ -300,16 +329,15 @@ if m3:
 # Combinar: nuestros primero, luego existentes, sin duplicados
 seen = set()
 final = []
-for l in launchers + existing:
+for l in launchers_to_pin + existing:
     if l not in seen:
         seen.add(l)
         final.append(l)
 
 new_value = ",".join(final)
 
-# Reemplazar launchers en la sección (o agregar si no existe)
+# Reemplazar o agregar
 if m3:
-    # Reemplazar la línea launchers= existente
     new_content = re.sub(
         r'(^\[' + re.escape(section_header) + r'\s*\][^\[]*?^launchers=)[^\n]*',
         lambda m: m.group(1) + new_value,
@@ -318,17 +346,53 @@ if m3:
         flags=re.MULTILINE | re.DOTALL,
     )
 else:
-    # Agregar la sección completa al final del archivo
     new_content = content + f"\n{section_header}\nlaunchers={new_value}\n"
 
 with open(config_file, 'w') as f:
     f.write(new_content)
 
-print(f"OK: {len(launchers)} apps pineadas ({', '.join(l.split('/')[-1].replace('.desktop','') for l in launchers)})")
+print(f"OK: {len(launchers_to_pin)} apps pineadas a applet [{containment_id}][{applet_id}]")
 PYEOF
 
-    # Refrescar Plasma para que tome los cambios sin re-login
-    if qdbus org.kde.plasma /PlasmaShell org.kde.PlasmaShell.refreshCurrentDesktop 2>/dev/null; then
-        log_ok "Panel KDE refrescado"
+    local python_rc=$?
+    if [ $python_rc -ne 0 ]; then
+        log_error "Python fallo al modificar panel config (rc=$python_rc)"
+        return 1
     fi
+
+    # 4) Refrescar el panel KDE para que tome los cambios
+    log_info "Refrescando panel KDE..."
+    local refreshed=0
+
+    # Metodo 1: qdbus (KDE)
+    if cmd_exists qdbus && qdbus org.kde.plasma /PlasmaShell org.kde.PlasmaShell.refreshCurrentDesktop 2>/dev/null; then
+        refreshed=1
+        log_ok "Panel refrescado via qdbus"
+    fi
+
+    # Metodo 2: dbus-send directo
+    if [ $refreshed -eq 0 ] && cmd_exists dbus-send; then
+        if dbus-send --session --type=signal /PlasmaShell org.kde.PlasmaShell.refreshCurrentDesktop 2>/dev/null; then
+            refreshed=1
+            log_ok "Panel refrescado via dbus-send"
+        fi
+    fi
+
+    # Metodo 3: recargar plasma-shell (más invasivo)
+    if [ $refreshed -eq 0 ]; then
+        if pgrep -x plasmashell &>/dev/null; then
+            log_info "plasmashell corriendo. Reintentando con kquitapp..."
+            (kquitapp6 plasmashell 2>/dev/null && kstart6 plasmashell &>/dev/null) &
+            refreshed=1
+        fi
+    fi
+
+    if [ $refreshed -eq 0 ]; then
+        log_warn "No pude refrescar el panel automaticamente."
+        log_info "Para ver las apps en la taskbar:"
+        log_info "  1. Cerrá sesión KDE y volvé a entrar (re-login)"
+        log_info "  2. O: qdbus org.kde.plasma /PlasmaShell org.kde.PlasmaShell.refreshCurrentDesktop"
+    fi
+
+    log_ok "${#found_paths[@]} apps disponibles para pinear (ver taskbar)"
 }
