@@ -519,37 +519,93 @@ if cmd_exists fastfetch; then
     "logo": {
         "type": "auto",
         "padding": {
-            "top": 1,
-            "left": 3
+            "top": 0,
+            "left": 2,
+            "right": 4
         }
     },
     "display": {
-        "separator": "  ",
+        "separator": " │ ",
         "color": {
-            "title": "cyan",
-            "key": "blue",
-            "value": "white"
+            "title": "magenta",
+            "key": "cyan",
+            "value": "default"
         }
     },
     "modules": [
         "title",
         "separator",
-        "os",
-        "host",
-        "kernel",
-        "uptime",
-        "packages",
-        "shell",
-        "display",
-        "de",
-        "wm",
-        "terminal",
-        "cpu",
-        "gpu",
-        "memory",
-        "disk",
-        "local-ip",
-        "colors"
+        {
+            "type": "os",
+            "key": "   OS       "
+        },
+        {
+            "type": "host",
+            "key": "   HOST     "
+        },
+        {
+            "type": "kernel",
+            "key": "   KERNEL   "
+        },
+        {
+            "type": "uptime",
+            "key": "   UPTIME   "
+        },
+        {
+            "type": "packages",
+            "key": "   PKGS     "
+        },
+        {
+            "type": "shell",
+            "key": "   SHELL    "
+        },
+        {
+            "type": "display",
+            "key": "   DISPLAY  "
+        },
+        {
+            "type": "de",
+            "key": "   DE       "
+        },
+        {
+            "type": "wm",
+            "key": "   WM       "
+        },
+        {
+            "type": "terminal",
+            "key": "   TERM     "
+        },
+        "break",
+        {
+            "type": "cpu",
+            "key": "   CPU      ",
+            "keyColor": "yellow"
+        },
+        {
+            "type": "gpu",
+            "key": "   GPU      ",
+            "keyColor": "yellow"
+        },
+        {
+            "type": "memory",
+            "key": "   MEM      ",
+            "keyColor": "green"
+        },
+        {
+            "type": "disk",
+            "key": "   DISK     ",
+            "keyColor": "green"
+        },
+        {
+            "type": "local-ip",
+            "key": "   IP       ",
+            "keyColor": "magenta"
+        },
+        "break",
+        {
+            "type": "colors",
+            "symbol": "circle"
+        }
     ]
 }
 FFEOF
