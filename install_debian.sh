@@ -618,6 +618,14 @@ else
 fi
 
 # ──────────────────────────────────────────────────────────────────────────────
+log_step "KDE Plasma — pineando apps a la taskbar"
+# ──────────────────────────────────────────────────────────────────────────────
+# Agrega Brave, VS Code, Kitty, VLC, OBS, virt-manager, Spotify y WPS al
+# panel/taskbar de KDE Plasma. Idempotente: si ya estan pineadas, las deja.
+# No-op si KDE no es el DE activo o si no hay sesion grafica iniciada.
+pin_apps_to_taskbar
+
+# ──────────────────────────────────────────────────────────────────────────────
 log_step "Instalación completada"
 # ──────────────────────────────────────────────────────────────────────────────
 echo ""

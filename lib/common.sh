@@ -203,3 +203,132 @@ check_dir() {
         fail "$label — directorio no existe: $dir"
     fi
 }
+
+# Pinea apps GUI a la taskbar de KDE Plasma (panel).
+# Modifica ~/.config/plasma-org.kde.plasma.desktop-appletsrc para que el
+# Icon Tasks applet tenga estas apps como favoritas. No-op si no estamos
+# en KDE Plasma o si el panel config no existe (ej: VM sin sesión gráfica
+# iniciada).
+#   pin_apps_to_taskbar
+pin_apps_to_taskbar() {
+    local config="$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc"
+
+    if [ ! -f "$config" ]; then
+        log_info "Panel config no existe (sesión KDE no iniciada o KDE no es el DE). Skip pin a taskbar."
+        return 0
+    fi
+
+    if ! cmd_exists python3; then
+        log_warn "python3 no encontrado, no se puede pinear a taskbar"
+        return 0
+    fi
+
+    python3 << 'PYEOF'
+import os
+import re
+import sys
+
+config_file = os.path.expanduser("~/.config/plasma-org.kde.plasma.desktop-appletsrc")
+with open(config_file) as f:
+    content = f.read()
+
+# Encontrar el applet ID del Icon Tasks
+m = re.search(r'\[Applets\]\[(\d+)\][^\[]*?plugin=org\.kde\.icontasks', content, re.DOTALL)
+if not m:
+    print("INFO: No hay Icon Tasks applet en el panel", file=sys.stderr)
+    sys.exit(0)
+applet_id = m.group(1)
+
+# Encontrar el containment ID que contiene ese applet
+m2 = re.search(r'\[Containments\]\[(\d+)\][^\[]*?\[Applets\]\[' + applet_id + r'\]', content, re.DOTALL)
+if not m2:
+    print("INFO: No hay containment para el applet", file=sys.stderr)
+    sys.exit(0)
+containment_id = m2.group(1)
+
+# Apps a pinear (en orden: izq a der en taskbar)
+apps = [
+    ("brave-browser", "brave-browser.desktop"),
+    ("code", "code.desktop"),
+    ("kitty", "kitty.desktop"),
+    ("vlc", "vlc.desktop"),
+    ("obs", "obs.desktop"),
+    ("virt-manager", "virt-manager.desktop"),
+    ("Spotify", "com.spotify.Client.desktop"),
+    ("WPS Office", "wps-office-wps.desktop"),
+]
+
+search_dirs = [
+    "/var/lib/flatpak/exports/share/applications",
+    "/usr/share/applications",
+    os.path.expanduser("~/.local/share/applications"),
+]
+
+launchers = []
+for name, dt in apps:
+    found = None
+    for d in search_dirs:
+        p = os.path.join(d, dt)
+        if os.path.exists(p):
+            found = p
+            break
+    if found:
+        launchers.append(f"file://{found}")
+    else:
+        print(f"  No encontrado: {dt}", file=sys.stderr)
+
+if not launchers:
+    print("INFO: No se encontraron apps para pinear", file=sys.stderr)
+    sys.exit(0)
+
+# Sección general del panel: 'Containments][N][Applets][M][General'
+section_header = f"[Containments][{containment_id}][Applets][{applet_id}][General]"
+
+# Extraer launchers existentes
+existing = []
+m3 = re.search(r'^' + re.escape(section_header) + r'\s*$', content, re.MULTILINE)
+if m3:
+    # Encontrar la sección y leer sus claves hasta el próximo [
+    start = m3.end()
+    next_section = re.search(r'^\[', content[start:], re.MULTILINE)
+    end = start + next_section.start() if next_section else len(content)
+    section_body = content[start:end]
+    launchers_match = re.search(r'^launchers=(.*)$', section_body, re.MULTILINE)
+    if launchers_match:
+        existing = [l for l in launchers_match.group(1).split(',') if l]
+
+# Combinar: nuestros primero, luego existentes, sin duplicados
+seen = set()
+final = []
+for l in launchers + existing:
+    if l not in seen:
+        seen.add(l)
+        final.append(l)
+
+new_value = ",".join(final)
+
+# Reemplazar launchers en la sección (o agregar si no existe)
+if m3:
+    # Reemplazar la línea launchers= existente
+    new_content = re.sub(
+        r'(^\[' + re.escape(section_header) + r'\s*\][^\[]*?^launchers=)[^\n]*',
+        lambda m: m.group(1) + new_value,
+        content,
+        count=1,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+else:
+    # Agregar la sección completa al final del archivo
+    new_content = content + f"\n{section_header}\nlaunchers={new_value}\n"
+
+with open(config_file, 'w') as f:
+    f.write(new_content)
+
+print(f"OK: {len(launchers)} apps pineadas ({', '.join(l.split('/')[-1].replace('.desktop','') for l in launchers)})")
+PYEOF
+
+    # Refrescar Plasma para que tome los cambios sin re-login
+    if qdbus org.kde.plasma /PlasmaShell org.kde.PlasmaShell.refreshCurrentDesktop 2>/dev/null; then
+        log_ok "Panel KDE refrescado"
+    fi
+}
