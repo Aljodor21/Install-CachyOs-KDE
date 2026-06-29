@@ -449,9 +449,11 @@ PYEOF
 
     if [ $refreshed -eq 0 ]; then
         log_warn "No pude refrescar el panel automaticamente."
-        log_info "Para ver las apps en la taskbar:"
-        log_info "  1. Cerrá sesión KDE y volvé a entrar (re-login)"
-        log_info "  2. O manualmente: kquitapp6 plasmashell && kstart6 plasmashell &"
+        log_info "Para ver las apps en la taskbar, hacé re-login completo (Plasma 6"
+        log_info "cachea el panel y kquitapp6 no alcanza):"
+        log_info "  Opcion 1: qdbus org.kde.KWin /Session logout 0 0 0 0 0"
+        log_info "  Opcion 2: loginctl terminate-user $USER"
+        log_info "  Opcion 3: desde el menú KDE -> Cerrar sesión"
     fi
 
     log_ok "${#found_paths[@]} apps disponibles para pinear (ver taskbar)"
