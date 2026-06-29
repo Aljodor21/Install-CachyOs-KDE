@@ -628,12 +628,20 @@ else
 fi
 
 # ──────────────────────────────────────────────────────────────────────────────
-log_step "KDE Plasma — pineando apps a la taskbar"
+log_step "KDE Plasma — apps pineadas al taskbar"
 # ──────────────────────────────────────────────────────────────────────────────
-# Agrega Brave, VS Code, Kitty, VLC, OBS, virt-manager, Spotify y WPS al
-# panel/taskbar de KDE Plasma. Idempotente: si ya estan pineadas, las deja.
-# No-op si KDE no es el DE activo o si no hay sesion grafica iniciada.
-pin_apps_to_taskbar
+# NOTA: el pineo automatico via DBus requiere estar DENTRO de la sesion KDE
+# grafica. Como install.sh corre desde TTY (no tiene DISPLAY), el DBus API
+# falla silenciosamente y las apps no aparecen. Por eso esto es solo un
+# MENSAJE recordatorio. Para pinear las apps, el usuario debe correr
+# ./pin-to-taskbar.sh desde una terminal DENTRO de KDE, o pinearlas
+# manualmente con click derecho.
+log_info "  Para pinear apps a la taskbar de KDE Plasma:"
+log_info "    Opcion A (recomendada): click derecho en el menu KDE"
+log_info "      sobre cada app -> 'Pin to Taskbar'"
+log_info "    Opcion B: desde una terminal dentro de KDE:"
+log_info "      cd ~/Install-CachyOs-KDE && ./pin-to-taskbar.sh"
+log_info "    Opcion C (mas rapida): arrastra los iconos del menu a la taskbar"
 
 # ──────────────────────────────────────────────────────────────────────────────
 log_step "Instalación completada"
