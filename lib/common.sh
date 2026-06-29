@@ -214,12 +214,14 @@ pin_apps_to_taskbar() {
     log_info "Pineando apps GUI a la taskbar de KDE Plasma..."
 
     # 1) Buscar .desktop files de las apps a pinear (siempre, para reportar)
+    # NOTA: algunos paquetes tienen nombres .desktop distintos al binario.
+    # Ej: obs-studio en Debian instala org.obsproject.Studio.desktop.
     local apps=(
         "Brave:brave-browser.desktop"
         "VS Code:code.desktop"
         "Kitty:kitty.desktop"
         "VLC:vlc.desktop"
-        "OBS Studio:obs.desktop"
+        "OBS Studio:org.obsproject.Studio.desktop:obs.desktop"
         "virt-manager:virt-manager.desktop"
         "Spotify:com.spotify.Client.desktop"
         "WPS Office:wps-office-wps.desktop"
@@ -227,22 +229,28 @@ pin_apps_to_taskbar() {
 
     local found_paths=()
     local found_names=()
-    while IFS=':' read -r display_name dt_name; do
+    while IFS=':' read -r display_name dt_name dt_name_alt; do
+        # Algunas apps tienen varios nombres de .desktop (ej OBS)
+        local candidates=("$dt_name")
+        [ -n "$dt_name_alt" ] && candidates+=("$dt_name_alt")
+
         local found=""
-        for d in "/var/lib/flatpak/exports/share/applications" \
-                 "/usr/share/applications" \
-                 "$HOME/.local/share/applications"; do
-            if [ -f "$d/$dt_name" ]; then
-                found="$d/$dt_name"
-                break
-            fi
+        for cand in "${candidates[@]}"; do
+            for d in "/var/lib/flatpak/exports/share/applications" \
+                     "/usr/share/applications" \
+                     "$HOME/.local/share/applications"; do
+                if [ -f "$d/$cand" ]; then
+                    found="$d/$cand"
+                    break 2
+                fi
+            done
         done
         if [ -n "$found" ]; then
             found_paths+=("$found")
             found_names+=("$display_name")
             log_ok "  Encontrado: $display_name → $found"
         else
-            log_info "  No encontrado: $display_name ($dt_name) — skip"
+            log_info "  No encontrado: $display_name (${candidates[*]}) — skip"
         fi
     done < <(printf '%s\n' "${apps[@]}")
 
@@ -287,6 +295,8 @@ pin_apps_to_taskbar() {
     launchers_list="${launchers_list%,}"
 
     # Pasar al Python como argumento (evita problemas de quoting)
+    # IMPORTANTE: Python SIEMPRE exit 0. Pinear a taskbar es opcional.
+    # Si falla (no hay KDE, no hay Icon Tasks applet, etc.), solo logueamos.
     python3 - "$config" "$launchers_list" << 'PYEOF'
 import sys
 import re
@@ -301,15 +311,17 @@ with open(config_file) as f:
 # Encontrar el applet ID del Icon Tasks
 m = re.search(r'\[Applets\]\[(\d+)\][^\[]*?plugin=org\.kde\.icontasks', content, re.DOTALL)
 if not m:
-    print("ERR: No hay Icon Tasks applet en el panel", file=sys.stderr)
-    sys.exit(1)
+    # No hay Icon Tasks applet: esto pasa en sesiones KDE no iniciadas
+    # o con layout de panel custom. No es un error, solo no pineamos.
+    print("INFO: No hay Icon Tasks applet en el panel config", file=sys.stderr)
+    sys.exit(0)
 applet_id = m.group(1)
 
 # Encontrar el containment ID que contiene ese applet
 m2 = re.search(r'\[Containments\]\[(\d+)\][^\[]*?\[Applets\]\[' + applet_id + r'\]', content, re.DOTALL)
 if not m2:
-    print("ERR: No hay containment para el applet", file=sys.stderr)
-    sys.exit(1)
+    print("INFO: No hay containment para el Icon Tasks applet", file=sys.stderr)
+    sys.exit(0)
 containment_id = m2.group(1)
 
 section_header = f"[Containments][{containment_id}][Applets][{applet_id}][General]"
@@ -354,11 +366,8 @@ with open(config_file, 'w') as f:
 print(f"OK: {len(launchers_to_pin)} apps pineadas a applet [{containment_id}][{applet_id}]")
 PYEOF
 
-    local python_rc=$?
-    if [ $python_rc -ne 0 ]; then
-        log_error "Python fallo al modificar panel config (rc=$python_rc)"
-        return 1
-    fi
+    # Python SIEMPRE exit 0. Si por algo falla, solo lo reportamos.
+    # Pinear a taskbar nunca debe abortar el install.
 
     # 4) Refrescar el panel KDE para que tome los cambios
     log_info "Refrescando panel KDE..."
