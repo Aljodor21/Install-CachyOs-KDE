@@ -221,7 +221,7 @@ pin_apps_to_taskbar() {
         "VS Code:code.desktop"
         "Kitty:kitty.desktop"
         "VLC:vlc.desktop"
-        "OBS Studio:org.obsproject.Studio.desktop:obs.desktop"
+        "OBS Studio:com.obsproject.Studio.desktop:org.obsproject.Studio.desktop:obs.desktop"
         "virt-manager:virt-manager.desktop"
         "Spotify:com.spotify.Client.desktop"
         "WPS Office:wps-office-wps.desktop"
