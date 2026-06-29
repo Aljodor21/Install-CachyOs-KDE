@@ -284,97 +284,140 @@ pin_apps_to_taskbar() {
         return 0
     fi
 
-    # 3) Modificar el panel config via Python
-    log_info "Modificando $config..."
+    # 3) Modificar el panel config via Python (fallback) + DBus API (primario)
+    log_info "Pineando via DBus API de Plasma..."
 
-    # Construir lista de launchers
-    local launchers_list=""
+    # Construir lista de URIs (file:// para path absoluto)
+    local uris=()
     for p in "${found_paths[@]}"; do
-        launchers_list="${launchers_list}file://$p,"
+        uris+=("file://$p")
     done
-    launchers_list="${launchers_list%,}"
 
-    # Pasar al Python como argumento (evita problemas de quoting)
-    # IMPORTANTE: Python SIEMPRE exit 0. Pinear a taskbar es opcional.
-    # Si falla (no hay KDE, no hay Icon Tasks applet, etc.), solo logueamos.
-    python3 - "$config" "$launchers_list" << 'PYEOF'
+    local pinned_count=0
+
+    # METODO 1 (PRIMARIO): DBus API - agrega favoritos directamente a Plasma
+    # Funciona aunque el panel config tenga estructura rara. Plasma escribe
+    # el cambio en disco y notifica al panel taskbar.
+    if cmd_exists qdbus; then
+        for uri in "${uris[@]}"; do
+            if qdbus org.kde.plasma /PlasmaShell org.kde.PlasmaShell.addFavorite "$uri" 2>/dev/null; then
+                pinned_count=$((pinned_count + 1))
+            fi
+        done
+        if [ $pinned_count -gt 0 ]; then
+            log_ok "  $pinned_count apps pineadas via qdbus"
+        fi
+    fi
+
+    # METODO 2: dbus-send (si qdbus no esta, ej: kde-cli-tools no instalado)
+    if [ $pinned_count -eq 0 ] && cmd_exists dbus-send; then
+        for uri in "${uris[@]}"; do
+            if dbus-send --session --type=method_call \
+                --dest=org.kde.plasma /PlasmaShell \
+                org.kde.PlasmaShell.addFavorite \
+                "string:$uri" 2>/dev/null; then
+                pinned_count=$((pinned_count + 1))
+            fi
+        done
+        if [ $pinned_count -gt 0 ]; then
+            log_ok "  $pinned_count apps pineadas via dbus-send"
+        fi
+    fi
+
+    # METODO 3 (FALLBACK): modificar el archivo de config directamente
+    if [ $pinned_count -eq 0 ]; then
+        log_info "DBus API no funciono, modificando config directamente..."
+        local launchers_list=""
+        for p in "${found_paths[@]}"; do
+            launchers_list="${launchers_list}file://$p,"
+        done
+        launchers_list="${launchers_list%,}"
+
+        # Pasamos el array de apps al Python via argv (mas seguro que heredoc)
+        local apps_arg="${found_paths[*]}"
+
+        python3 - "$config" << PYEOF
 import sys
 import re
 import os
 
 config_file = sys.argv[1]
-launchers_to_pin = sys.argv[2].split(',')
+apps = sys.argv[2:]
 
 with open(config_file) as f:
     content = f.read()
 
-# Encontrar el applet ID del Icon Tasks
-# En Plasma 6 el plugin es org.kde.plasma.icontasks (con namespace 'plasma.')
-# Tambien soportamos org.kde.plasma.taskmanager (Task Manager widget)
-m = re.search(r'\[Applets\]\[(\d+)\][^\[]*?plugin=org\.kde\.plasma\.(icontasks|taskmanager)', content, re.DOTALL)
-if not m:
-    # No hay Icon Tasks applet: esto pasa en sesiones KDE no iniciadas
-    # o con layout de panel custom. No es un error, solo no pineamos.
-    print("INFO: No hay Icon Tasks/TaskManager applet en el panel config", file=sys.stderr)
+# Encontrar TODAS las ocurrencias de [Applets][N] con plugin icontasks/taskmanager
+# Plasma puede tener varios panels, queremos modificar el que tiene el taskbar real
+matches = list(re.finditer(r'\[Applets\]\[(\d+)\]\s*\n(?:[^\[]*\n)*?plugin=org\.kde\.plasma\.(icontasks|taskmanager)', content, re.MULTILINE))
+
+if not matches:
+    print("INFO: No hay Icon Tasks applet", file=sys.stderr)
     sys.exit(0)
-applet_id = m.group(1)
 
-# Encontrar el containment ID que contiene ese applet
-m2 = re.search(r'\[Containments\]\[(\d+)\][^\[]*?\[Applets\]\[' + applet_id + r'\]', content, re.DOTALL)
-if not m2:
-    print("INFO: No hay containment para el Icon Tasks applet", file=sys.stderr)
-    sys.exit(0)
-containment_id = m2.group(1)
+# Para cada applet encontrado, encontrar su containment parent
+launchers_to_add = [f"file://{p}" for p in apps]
 
-section_header = f"[Containments][{containment_id}][Applets][{applet_id}][General]"
+modified = False
+for m in matches:
+    applet_id = m.group(1)
 
-# Extraer launchers existentes
-existing = []
-m3 = re.search(r'^' + re.escape(section_header) + r'\s*$', content, re.MULTILINE)
-if m3:
-    start = m3.end()
-    next_section = re.search(r'^\[', content[start:], re.MULTILINE)
-    end = start + next_section.start() if next_section else len(content)
-    section_body = content[start:end]
-    launchers_match = re.search(r'^launchers=(.*)$', section_body, re.MULTILINE)
-    if launchers_match:
-        existing = [l for l in launchers_match.group(1).split(',') if l]
+    # Buscar el [Containments][M] que contiene este applet
+    # Strategy: encontrar [Containments][M][Applets][N] en el contenido
+    parent = re.search(r'\[Containments\]\[(\d+)\]\s*\n(?:[^\[]*\n)*?\[Applets\]\[' + applet_id + r'\]', content, re.MULTILINE)
+    if not parent:
+        continue
+    containment_id = parent.group(1)
 
-# Combinar: nuestros primero, luego existentes, sin duplicados
-seen = set()
-final = []
-for l in launchers_to_pin + existing:
-    if l not in seen:
-        seen.add(l)
-        final.append(l)
+    section_header = f"[Containments][{containment_id}][Applets][{applet_id}][General]"
 
-new_value = ",".join(final)
+    # Extraer launchers existentes
+    existing = []
+    m3 = re.search(r'^' + re.escape(section_header) + r'\s*$', content, re.MULTILINE)
+    if m3:
+        start = m3.end()
+        next_section = re.search(r'^\[', content[start:], re.MULTILINE)
+        end = start + next_section.start() if next_section else len(content)
+        section_body = content[start:end]
+        launchers_match = re.search(r'^launchers=(.*)$', section_body, re.MULTILINE)
+        if launchers_match:
+            existing = [l for l in launchers_match.group(1).split(',') if l]
 
-# Reemplazar o agregar
-if m3:
-    new_content = re.sub(
-        r'(^\[' + re.escape(section_header) + r'\s*\][^\[]*?^launchers=)[^\n]*',
-        lambda m: m.group(1) + new_value,
-        content,
-        count=1,
-        flags=re.MULTILINE | re.DOTALL,
-    )
-else:
-    new_content = content + f"\n{section_header}\nlaunchers={new_value}\n"
+    # Combinar: nuestros primero, luego existentes, sin duplicados
+    seen = set()
+    final = []
+    for l in launchers_to_add + existing:
+        if l not in seen:
+            seen.add(l)
+            final.append(l)
+
+    new_value = ",".join(final)
+
+    # Reemplazar o agregar la linea launchers
+    if m3:
+        content = re.sub(
+            r'(^\[' + re.escape(section_header) + r'\s*\][^\[]*?^launchers=)[^\n]*',
+            lambda mt: mt.group(1) + new_value,
+            content,
+            count=1,
+            flags=re.MULTILINE | re.DOTALL,
+        )
+    else:
+        # Agregar la seccion General al final del archivo
+        content += f"\n{section_header}\nlaunchers={new_value}\n"
+    modified = True
+    print(f"OK: modificado [{containment_id}][{applet_id}] con {len(launchers_to_add)} apps")
+
+if not modified:
+    print("WARN: No se pudo modificar ninguna seccion", file=sys.stderr)
+    sys.exit(1)
 
 with open(config_file, 'w') as f:
-    f.write(new_content)
-
-print(f"OK: {len(launchers_to_pin)} apps pineadas a applet [{containment_id}][{applet_id}]")
+    f.write(content)
 PYEOF
-
-    # Python SIEMPRE exit 0. Si por algo falla, solo lo reportamos.
-    # Pinear a taskbar nunca debe abortar el install.
+    fi
 
     # 4) Refrescar el panel KDE para que tome los cambios
-    # Plasma cachea el config en memoria, asi que para que tome la modificacion
-    # del archivo hay que reiniciar plasmashell. dbus-send refresh a veces no
-    # alcanza. kquitapp6 + kstart6 es lo mas confiable.
     log_info "Refrescando panel KDE (puede parpadear ~2s)..."
     local refreshed=0
 
@@ -388,7 +431,7 @@ PYEOF
         fi
     fi
 
-    # Metodo 2: qdbus refresh (si Metodo 1 fallo)
+    # Metodo 2: qdbus refresh
     if [ $refreshed -eq 0 ] && cmd_exists qdbus; then
         if qdbus org.kde.plasma /PlasmaShell org.kde.PlasmaShell.refreshCurrentDesktop 2>/dev/null; then
             refreshed=1
@@ -396,7 +439,7 @@ PYEOF
         fi
     fi
 
-    # Metodo 3: dbus-send signal (ultimo fallback)
+    # Metodo 3: dbus-send
     if [ $refreshed -eq 0 ] && cmd_exists dbus-send; then
         if dbus-send --session --type=signal /PlasmaShell org.kde.PlasmaShell.refreshCurrentDesktop 2>/dev/null; then
             refreshed=1
