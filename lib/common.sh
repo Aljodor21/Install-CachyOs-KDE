@@ -309,11 +309,13 @@ with open(config_file) as f:
     content = f.read()
 
 # Encontrar el applet ID del Icon Tasks
-m = re.search(r'\[Applets\]\[(\d+)\][^\[]*?plugin=org\.kde\.icontasks', content, re.DOTALL)
+# En Plasma 6 el plugin es org.kde.plasma.icontasks (con namespace 'plasma.')
+# Tambien soportamos org.kde.plasma.taskmanager (Task Manager widget)
+m = re.search(r'\[Applets\]\[(\d+)\][^\[]*?plugin=org\.kde\.plasma\.(icontasks|taskmanager)', content, re.DOTALL)
 if not m:
     # No hay Icon Tasks applet: esto pasa en sesiones KDE no iniciadas
     # o con layout de panel custom. No es un error, solo no pineamos.
-    print("INFO: No hay Icon Tasks applet en el panel config", file=sys.stderr)
+    print("INFO: No hay Icon Tasks/TaskManager applet en el panel config", file=sys.stderr)
     sys.exit(0)
 applet_id = m.group(1)
 

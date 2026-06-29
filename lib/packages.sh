@@ -42,6 +42,8 @@ declare -A PKG_ARCH=(
     [obs]="obs-studio"
     [java17]="jdk17-openjdk"
     [fastfetch]="fastfetch"
+    # Guest additions para VM (KVM/QEMU con SPICE)
+    [guest-tools]="spice-vdagent qemu-guest-agent"
     # Virtualización KVM/QEMU
     [qemu]="qemu-full"
     [libvirt]="libvirt virt-manager virt-viewer dnsmasq vde2 bridge-utils ebtables iptables-nft swtpm"
@@ -84,6 +86,8 @@ declare -A PKG_DEBIAN=(
     [obs]="obs-studio"
     [java17]="openjdk-17-jdk"
     [fastfetch]="fastfetch"
+    # Guest additions para VM (KVM/QEMU con SPICE)
+    [guest-tools]="spice-vdagent qemu-guest-agent"
     # libfuse2 para DaVinci Resolve AppImage/.run
     [libfuse]="libfuse2"
     # Virtualización KVM/QEMU

@@ -246,7 +246,7 @@ try_install() {
 apt_install $(
     for key in git github-cli python kitty flatpak vlc codecs base-devel zsh \
                cifs-utils screenshot audio system-tools bluetooth \
-               gtk-theme ffmpeg obs fastfetch qemu libvirt ovmf; do
+               gtk-theme ffmpeg obs fastfetch guest-tools qemu libvirt ovmf; do
         pkg_for "$key"
     done
 )
@@ -323,6 +323,16 @@ sudo usermod -aG libvirt "$USER"
 
 # Bluetooth
 sudo systemctl enable --now bluetooth
+
+# Guest tools (para VMs KVM/QEMU con SPICE)
+# spice-vdagent: clipboard sync + dynamic resolution + drag&drop
+# qemu-guest-agent: host-guest communication (graceful shutdown, snapshots)
+if cmd_exists spice-vdagentd; then
+    sudo systemctl enable --now spice-vdagentd 2>/dev/null || true
+fi
+if cmd_exists qemu-ga; then
+    sudo systemctl enable --now qemu-guest-agent 2>/dev/null || true
+fi
 
 # ──────────────────────────────────────────────────────────────────────────────
 log_step "Virtualización KVM/QEMU — red default"
