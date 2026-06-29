@@ -372,16 +372,31 @@ PYEOF
     # Pinear a taskbar nunca debe abortar el install.
 
     # 4) Refrescar el panel KDE para que tome los cambios
-    log_info "Refrescando panel KDE..."
+    # Plasma cachea el config en memoria, asi que para que tome la modificacion
+    # del archivo hay que reiniciar plasmashell. dbus-send refresh a veces no
+    # alcanza. kquitapp6 + kstart6 es lo mas confiable.
+    log_info "Refrescando panel KDE (puede parpadear ~2s)..."
     local refreshed=0
 
-    # Metodo 1: qdbus (KDE)
-    if cmd_exists qdbus && qdbus org.kde.plasma /PlasmaShell org.kde.PlasmaShell.refreshCurrentDesktop 2>/dev/null; then
-        refreshed=1
-        log_ok "Panel refrescado via qdbus"
+    # Metodo 1: plasmashell restart (MAS confiable, lee config de disco)
+    if pgrep -x plasmashell &>/dev/null; then
+        if cmd_exists kquitapp6 && cmd_exists kstart6; then
+            log_info "Reiniciando plasmashell para que lea config..."
+            (kquitapp6 plasmashell 2>/dev/null; kstart6 plasmashell 2>/dev/null &)
+            refreshed=1
+            log_ok "plasmashell reiniciado"
+        fi
     fi
 
-    # Metodo 2: dbus-send directo
+    # Metodo 2: qdbus refresh (si Metodo 1 fallo)
+    if [ $refreshed -eq 0 ] && cmd_exists qdbus; then
+        if qdbus org.kde.plasma /PlasmaShell org.kde.PlasmaShell.refreshCurrentDesktop 2>/dev/null; then
+            refreshed=1
+            log_ok "Panel refrescado via qdbus"
+        fi
+    fi
+
+    # Metodo 3: dbus-send signal (ultimo fallback)
     if [ $refreshed -eq 0 ] && cmd_exists dbus-send; then
         if dbus-send --session --type=signal /PlasmaShell org.kde.PlasmaShell.refreshCurrentDesktop 2>/dev/null; then
             refreshed=1
@@ -389,20 +404,11 @@ PYEOF
         fi
     fi
 
-    # Metodo 3: recargar plasma-shell (más invasivo)
-    if [ $refreshed -eq 0 ]; then
-        if pgrep -x plasmashell &>/dev/null; then
-            log_info "plasmashell corriendo. Reintentando con kquitapp..."
-            (kquitapp6 plasmashell 2>/dev/null && kstart6 plasmashell &>/dev/null) &
-            refreshed=1
-        fi
-    fi
-
     if [ $refreshed -eq 0 ]; then
         log_warn "No pude refrescar el panel automaticamente."
         log_info "Para ver las apps en la taskbar:"
         log_info "  1. Cerrá sesión KDE y volvé a entrar (re-login)"
-        log_info "  2. O: qdbus org.kde.plasma /PlasmaShell org.kde.PlasmaShell.refreshCurrentDesktop"
+        log_info "  2. O manualmente: kquitapp6 plasmashell && kstart6 plasmashell &"
     fi
 
     log_ok "${#found_paths[@]} apps disponibles para pinear (ver taskbar)"
