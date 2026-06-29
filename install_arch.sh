@@ -355,20 +355,22 @@ else
 fi
 
 # ──────────────────────────────────────────────────────────────────────────────
-log_step "KDE Plasma — apps pineadas al taskbar"
+log_step "KDE Plasma — pineo de apps al taskbar"
 # ──────────────────────────────────────────────────────────────────────────────
-# NOTA: el pineo automatico via DBus requiere estar DENTRO de la sesion KDE
-# grafica. Como install.sh corre desde TTY (no tiene DISPLAY), el DBus API
-# falla silenciosamente y las apps no aparecen. Por eso esto es solo un
-# MENSAJE recordatorio. Para pinear las apps, el usuario debe correr
-# ./pin-to-taskbar.sh desde una terminal DENTRO de KDE, o pinearlas
-# manualmente con click derecho.
-log_info "  Para pinear apps a la taskbar de KDE Plasma:"
-log_info "    Opcion A (recomendada): click derecho en el menu KDE"
-log_info "      sobre cada app -> 'Pin to Taskbar'"
-log_info "    Opcion B: desde una terminal dentro de KDE:"
-log_info "      cd ~/Install-CachyOs-KDE && ./pin-to-taskbar.sh"
-log_info "    Opcion C (mas rapida): arrastra los iconos del menu a la taskbar"
+# El pineo automatico desde install.sh no es posible: requiere DBus API
+# de Plasma que solo funciona desde DENTRO de la sesion KDE grafica
+# activa, y install.sh corre desde TTY (sin DISPLAY).
+# Ademas, Plasma 6 + Wayland no refresca el panel con kquitapp6;
+# necesita re-login COMPLETO de la sesion KDE para tomar cambios.
+#
+# Conclusion: pineo manual es la unica opcion confiable. El usuario
+# debe hacerlo una vez con click derecho en cada app del menu KDE.
+log_info "  Las apps ya estan instaladas. Para pinearlas al taskbar:"
+log_info "  - Abre el menu Kickoff (tecla Super)"
+log_info "  - Click derecho en cada app que queres -> 'Anclar a la barra de tareas'"
+log_info "  - O arrastra los iconos desde el menu hasta la taskbar"
+log_info ""
+log_info "  Es 30 segundos, funciona siempre, sin re-login ni DBus raros."
 
 # ──────────────────────────────────────────────────────────────────────────────
 log_step "Instalación completada"
