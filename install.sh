@@ -104,3 +104,41 @@ echo ""
 echo "Listo. Para validar la instalación:"
 echo "  $SCRIPT_DIR/validate_install.sh"
 echo ""
+
+# =============================================================================
+# Toque visual final: pinear apps al taskbar + tema + wallpaper
+# =============================================================================
+# desktop-touch.sh hace:
+#   - Pinea Brave, VSCode, Kitty, VLC, OBS, virt-manager, Spotify, WPS
+#     a la taskbar de KDE Plasma
+#   - Instala iconos Papirus (papirus-dark)
+#   - Descarga wallpaper y lo aplica via DBus (si hay sesion grafica)
+#
+# Se ejecuta al final del install para que el sistema quede con toque
+# "personal" out-of-the-box sin requerir clicks manuales.
+log_step "Toque visual final — apps a la taskbar + tema + wallpaper"
+
+# Hacer ejecutable el script (idempotente)
+chmod +x "$SCRIPT_DIR/desktop-touch.sh" 2>/dev/null || true
+
+# Ejecutar. Flags:
+#   --no-taskbar lo deja al install automatico pin solo
+#   --no-wallpaper skip wallpaper si no queres descargar
+# No usamos --dry-run (queremos que aplique)
+if [ -t 0 ]; then
+    # Sesion interactiva: correr directamente
+    "$SCRIPT_DIR/desktop-touch.sh"
+else
+    # Sesion no interactiva (ej desde reset + install): saltar
+    log_info "Sesion no interactiva, saltando desktop-touch.sh"
+    log_info "  Para correrlo despues: ~/Install-CachyOs-KDE/desktop-touch.sh"
+fi
+
+echo ""
+echo "================================================================="
+echo "  INSTALL COMPLETO"
+echo "  - Para que TODO se vea: cerrá sesion KDE y volvé a entrar"
+echo "    (Plasma 6 necesita re-login para releer taskbar config)"
+echo "    qdbus org.kde.KWin /Session logout 0 0 0 0 0"
+echo "  - Para validar: ./validate_install.sh"
+echo "================================================================="
