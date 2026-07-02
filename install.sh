@@ -106,30 +106,26 @@ echo "  $SCRIPT_DIR/validate_install.sh"
 echo ""
 
 # =============================================================================
-# Toque visual final: pinear apps al taskbar + tema + wallpaper
+# Toque visual final: iconos en el escritorio + tema + wallpaper
 # =============================================================================
-# desktop-touch.sh hace:
-#   - Pinea Brave, VSCode, Kitty, VLC, OBS, virt-manager, Spotify, WPS
-#     a la taskbar de KDE Plasma
-#   - Instala iconos Papirus (papirus-dark)
-#   - Descarga wallpaper y lo aplica via DBus (si hay sesion grafica)
-#
-# Se ejecuta al final del install para que el sistema quede con toque
-# "personal" out-of-the-box sin requerir clicks manuales.
-log_step "Toque visual final — apps a la taskbar + tema + wallpaper"
+# Pinear al taskbar de Plasma 6 + Wayland es fragil (rompe render).
+# En su lugar: agregar las apps al ESCRITORIO via symlinks a ~/Desktop.
+# KDE Plasma muestra automaticamente cualquier .desktop en ~/Desktop como
+# icono, sin DBus, sin config, sin re-login, sin nada raro.
+log_step "Toque visual final — iconos en escritorio + tema + wallpaper"
 
 # Hacer ejecutable el script (idempotente)
 chmod +x "$SCRIPT_DIR/desktop-touch.sh" 2>/dev/null || true
 
-# Ejecutar. Flags:
-#   --no-taskbar lo deja al install automatico pin solo
-#   --no-wallpaper skip wallpaper si no queres descargar
-# No usamos --dry-run (queremos que aplique)
+# Crea iconos en el escritorio via symlinks. Funciona desde TTY.
+add_desktop_icons
+
 if [ -t 0 ]; then
-    # Sesion interactiva: correr directamente
-    "$SCRIPT_DIR/desktop-touch.sh"
+    # Sesion interactiva: corre desktop-touch.sh para theme + wallpaper.
+    # Le pasamos --no-taskbar porque ya usamos add_desktop_icons arriba
+    # (el pineo a taskbar es fragil en Plasma 6 + Wayland).
+    "$SCRIPT_DIR/desktop-touch.sh" --no-taskbar
 else
-    # Sesion no interactiva (ej desde reset + install): saltar
     log_info "Sesion no interactiva, saltando desktop-touch.sh"
     log_info "  Para correrlo despues: ~/Install-CachyOs-KDE/desktop-touch.sh"
 fi
@@ -137,8 +133,8 @@ fi
 echo ""
 echo "================================================================="
 echo "  INSTALL COMPLETO"
-echo "  - Para que TODO se vea: cerrá sesion KDE y volvé a entrar"
-echo "    (Plasma 6 necesita re-login para releer taskbar config)"
+echo "  - Los iconos de las apps YA ESTAN en ~/Desktop (visibles al login)"
+echo "  - Si NO ves los iconos: cerrá sesion KDE y volvé a entrar"
 echo "    qdbus org.kde.KWin /Session logout 0 0 0 0 0"
 echo "  - Para validar: ./validate_install.sh"
 echo "================================================================="

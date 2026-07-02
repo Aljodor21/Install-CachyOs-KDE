@@ -204,3 +204,77 @@ check_dir() {
     fi
 }
 
+
+# Crea symlinks de .desktop files a ~/Desktop/ para que aparezcan como
+# iconos en el escritorio de KDE Plasma. Mucho mas confiable que pinear
+# al taskbar (que requiere DBus API + re-login + Plasma 6 + Wayland quirks).
+#   add_desktop_icons
+add_desktop_icons() {
+    local desktop_dir="$HOME/Desktop"
+    mkdir -p "$desktop_dir"
+
+    # Apps: nombre amigable, nombre del .desktop file
+    local apps=(
+        "Brave:brave-browser.desktop"
+        "VS Code:code.desktop"
+        "Kitty:kitty.desktop"
+        "VLC:vlc.desktop"
+        "OBS Studio:com.obsproject.Studio.desktop"
+        "virt-manager:virt-manager.desktop"
+        "Spotify:com.spotify.Client.desktop"
+        "WPS Office:wps-office-wps.desktop"
+    )
+
+    local search_dirs=(
+        /var/lib/flatpak/exports/share/applications
+        /usr/share/applications
+        "$HOME/.local/share/applications"
+    )
+
+    local added=0
+    local skipped=0
+
+    for entry in "${apps[@]}"; do
+        IFS=':' read -r display_name dt_name <<< "$entry"
+
+        # Buscar el .desktop (Flatpak primero, luego sistema)
+        local found=""
+        for d in "${search_dirs[@]}"; do
+            if [ -f "$d/$dt_name" ]; then
+                found="$d/$dt_name"
+                break
+            fi
+        done
+
+        if [ -z "$found" ]; then
+            log_info "  No encontrado: $display_name ($dt_name) — skip"
+            skipped=$((skipped + 1))
+            continue
+        fi
+
+        # Symlink (no copiar) para que se actualice si el .desktop cambia
+        ln -sf "$found" "$desktop_dir/$dt_name"
+        log_ok "  $display_name → $desktop_dir/$dt_name"
+        added=$((added + 1))
+    done
+
+    log_ok "$added iconos en el escritorio, $skipped no encontrados"
+
+    # Habilitar que el escritorio muestre iconos via DBus (si hay sesion)
+    if [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then
+        log_info "Habilitando iconos en el escritorio via DBus..."
+        # Cambiar el 'DesktopContainment' para que muestre icons
+        # (en vez de folder-view-only-preview)
+        # Esto es via plasma session; si falla no importa
+        if command -v qdbus &>/dev/null; then
+            # Para todos los Containments tipo desktop folder
+            for containment in $(qdbus org.kde.plasma / org.kde.plasma ShellInterface 2>/dev/null \
+                | rg -o 'Containments/[0-9]+' | sort -u || true); do
+                # Activar icons: inConfigureApplets=false, inFace=true
+                qdbus org.kde.plasma "/${containment}" \
+                    org.kde.plasma.faceless.showInFace true 2>/dev/null || true
+            done
+            log_ok "Iconos en escritorio habilitados"
+        fi
+    fi
+}

@@ -309,7 +309,7 @@ else:
 PYEOF
 
     else
-        echo "  [INFO] Sesion grafica KDE activa — intento DBus API directo"
+        echo "  [INFO] Sesion grafica KDE activa - intento DBus API directo"
 
         # DBus API: agregar favoritos al taskbar (instantáneo, sin re-login)
         if ! command -v qdbus &>/dev/null; then
