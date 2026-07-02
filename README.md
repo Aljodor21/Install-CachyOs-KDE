@@ -17,8 +17,8 @@ El entry point detecta tu distro y aplica el script correspondiente.
 - [Prerequisitos](#prerequisitos)
 - [Orden de uso](#orden-de-uso)
 - [Qué instala](#qué-instala)
+- [Toque visual](#toque-visual)
 - [Configuración inicial automática (wizard)](#configuración-inicial-automática-wizard)
-- [Pasos manuales](#pasos-manuales)
 - [Archivos del repo](#archivos-del-repo)
 - [Verificación final](#verificación-final)
 - [Troubleshooting](#troubleshooting)
@@ -38,6 +38,9 @@ Después corre el wizard de configuración inicial (6 pasos) que te pregunta por
 Git, GitHub CLI, Zsh default, NVM, Docker y Tailscale. (Claude y opencode son
 siempre manuales — los corrés vos cuando quieras.)
 
+Al final también aplica un **toque visual**: iconos Papirus + apps como
+symlinks en `~/Desktop/` (visibles al login KDE) + wallpaper random de picsum.
+
 ---
 
 ## Por qué este repo (vs AUR)
@@ -53,6 +56,8 @@ varios paquetes AUR fueron comprometidos para distribuir malware. Este repo:
   (Debian) o verificación de `makepkg` (Arch).
 - **.zshrc condicional**: los aliases `update`/`install`/`remove` se setean al
   cargar el shell según la familia.
+- **Touch visual out-of-the-box**: iconos Papirus, apps en `~/Desktop/`, fastfetch con
+  colores y wallpaper random. Sin clicks manuales.
 
 ---
 
@@ -70,26 +75,29 @@ varios paquetes AUR fueron comprometidos para distribuir malware. Este repo:
 ## Orden de uso
 
 ```bash
-# 1. Clonar o copiar los archivos a tu home
+# 1. Clonar el repo
 cd ~
 git clone https://github.com/Aljodor21/Install-CachyOs-KDE.git
 cd Install-CachyOs-KDE
 
-# 2. Correr el entry point — detecta distro e instala
-chmod +x install.sh install_arch.sh install_debian.sh validate_install.sh fix_post_install.sh
+# 2. Correr el install (auto-detecta distro e instala todo)
+chmod +x *.sh
 ./install.sh
 
-# 3. (Inmediato) Wizard de configuración inicial
-# El script lo lanza automáticamente al final.
+# 3. Al final corre el wizard (6 pasos) automaticamente
 # Cada paso es opcional. Enter = sí.
 
-# 4. Reiniciar sesión
-# (Importante para grupos docker/libvirt y shell zsh)
+# 4. El install.sh tambien aplica toque visual al final:
+#    - Iconos Papirus-dark
+#    - Symlinks de apps a ~/Desktop/ (visibles en el escritorio KDE)
+#    - Wallpaper random de picsum.photos
 
-# 5. Validar
+# 5. Login KDE (recomendado: sesion X11 en VMs para mejor compatibilidad)
+
+# 6. Validar
 ./validate_install.sh
 
-# 6. Si hay FAIL, correr el fix
+# 7. Si hay FAIL, correr el fix
 ./fix_post_install.sh
 ```
 
@@ -102,30 +110,30 @@ chmod +x install.sh install_arch.sh install_debian.sh validate_install.sh fix_po
 
 ### Desarrollo
 - Git, GitHub CLI (`gh`)
-- VS Code
+- VS Code (repo firmado en Debian, AUR en Arch)
 - Node.js via NVM (LTS)
 - Python 3 + pip + venv
-- Java JDK 17 (OpenJDK)
+- Java JDK 17 (OpenJDK), con fallback a JDK 21 si 17 no está (Debian 13)
 - Docker + Docker Compose plugin
-- Angular CLI
-- Claude Code CLI
-- **opencode** (CLI agent)
+- Angular CLI (npm)
+- Claude Code CLI (npm)
+- **opencode** (CLI agent, instalador oficial)
 
 ### Multimedia
 - OBS Studio
-- FFmpeg + codecs
+- FFmpeg + codecs gstreamer
 - VLC
 - DaVinci Resolve ⚠️ — instalación manual (ver abajo)
 
 ### Productividad
-- WPS Office (descarga .deb en Debian, AUR en Arch)
+- WPS Office (descarga `.deb` desde wps.com en Debian, AUR en Arch)
 - Spotify (Flatpak)
-- Brave Browser
 
 ### Sistema / Red
 - **KVM/QEMU/libvirt/virt-manager** (reemplaza VirtualBox)
 - Tailscale
 - Bluetooth
+- **Guest tools para VM**: `spice-vdagent` (clipboard, drag&drop, resolución dinámica), `qemu-guest-agent` (comunicación host↔VM)
 
 ### Hardware
 - OpenTabletDriver (tablet Huion)
@@ -133,8 +141,25 @@ chmod +x install.sh install_arch.sh install_debian.sh validate_install.sh fix_po
 ### Terminal / Entorno
 - Zsh + Oh My Zsh + Powerlevel10k
 - Plugins: autosuggestions, syntax-highlighting, history-substring-search
-- Kitty con tema Tokyo Night
+- Kitty con tema Tokyo Night, opacity 0.85, blur 30
 - JetBrains Mono Nerd Font
+- **fastfetch** con config lindo (colores por categoría, paleta al final)
+
+---
+
+## Toque visual
+
+Al final del install, el script aplica automáticamente:
+
+| Toque | Detalle |
+|---|---|
+| **Iconos Papirus-dark** | `papirus-icon-theme` instalado, theme en `~/.config/kdeglobals` |
+| **Apps en el escritorio** | Symlinks de los 8 `.desktop` a `~/Desktop/`. KDE Plasma los renderiza como iconos automáticamente. Sin DBus, sin re-login. |
+| **Wallpaper** | Imagen random 1920x1080 de `picsum.photos`, aplicada via DBus si hay sesión gráfica |
+| **Fix de zsh_history** | Detecta y resetea `~/.zsh_history` corrupto |
+
+Si querés pinear al taskbar ADEMÁS (no recomendado, frágil en Plasma 6 + Wayland):
+- Click derecho en cada app del menú Kickoff → "Pin to Taskbar"
 
 ---
 
@@ -152,7 +177,7 @@ Al final del install corre `lib/post_install_config.sh` (también disponible com
 | 5 | Docker test | `docker run --rm hello-world` con `sg docker` |
 | 6 | Tailscale | `sudo tailscale up` (abre navegador) |
 
-Claude Code CLI y opencode **no están en el wizard** — se instalan con el script
+**Claude Code CLI y opencode NO están en el wizard** — se instalan con el script
 pero su auth es 100% manual: corré `claude` o `opencode` cuando quieras.
 
 Cada paso:
@@ -160,42 +185,9 @@ Cada paso:
 - **Skip automático** si la herramienta no está instalada.
 - **Skip automático** si ya está configurado (idempotente).
 - Log en `~/.local/share/install-kde/config.log`.
+- **Tabla resumen al final** con estado OK/PEND por paso (chequeado en vivo).
 
 Para re-ejecutar después: `post-install-config`
-
----
-
-## Pasos manuales (no se pueden automatizar)
-
-### Teclado con ñ
-KDE → Ajustes del sistema → Teclado → Distribuciones
-- Distribución: `English (US)`
-- Variante: `English (intl., with dead keys)`
-
-Con `us intl`: `~ + n` = ñ | `' + vocal` = tilde | `" + u` = ü
-
-### DaVinci Resolve
-| Familia | Comando |
-|---|---|
-| Arch | `sudo pacman -S --needed fuse2` |
-| Debian | `sudo apt install libfuse2` (ya lo instala el script) |
-
-Después descargar `.run` desde [blackmagicdesign.com](https://www.blackmagicdesign.com/products/davinciresolve):
-```bash
-chmod +x DaVinci_Resolve_*.run
-./DaVinci_Resolve_*.run
-```
-
-### Tablet Huion
-El servicio de usuario se habilita automáticamente. Abrir **OpenTabletDriver**
-desde el menú de apps para configurar los botones.
-
-### VPN + NAS
-Ver [`guia_vpn_nas.md`](./guia_vpn_nas.md) para conectar Tailscale y montar el
-NAS por SMB con automontaje.
-
-### Monitores
-KDE → Ajustes del sistema → Pantallas
 
 ---
 
@@ -203,21 +195,24 @@ KDE → Ajustes del sistema → Pantallas
 
 | Archivo | Descripción |
 |---|---|
-| `install.sh` | **Entry point.** Detecta distro y delega a `install_arch.sh` o `install_debian.sh`. |
+| `install.sh` | **Entry point.** Detecta distro y delega a `install_arch.sh` o `install_debian.sh`. Al final corre wizard + desktop-touch.sh. |
 | `install_arch.sh` | Instala todo para familia Arch (pacman + yay). |
 | `install_debian.sh` | Instala todo para familia Debian (apt + repos `.deb` firmados). |
-| `validate_install.sh` | Verifica instalación con checks distro-aware. Muestra OK/FAIL/WARN/SKIP. |
+| `desktop-touch.sh` | Toque visual: pinea apps al escritorio (symlinks), iconos Papirus, wallpaper. |
+| `validate_install.sh` | Verifica instalación con 46 checks distro-aware. |
 | `fix_post_install.sh` | Reinstala los ítems que fallaron. |
+| `reset.sh` | Desinstalador con 11 categorías, `--dry-run`, `--yes`, `--no-backup`. |
 | `lib/detect_distro.sh` | Detecta familia desde `/etc/os-release`. |
-| `lib/common.sh` | Logging, helpers, checks. |
+| `lib/common.sh` | Logging, helpers, `add_desktop_icons`, `fix_zsh_history_corruption`, checks. |
 | `lib/packages.sh` | Tablas de paquetes por familia + AUR + repos externos. |
-| `lib/post_install_config.sh` | Wizard de configuración inicial. |
-| `setup_terminal.sh` | Configura Zsh + Oh My Zsh + Powerlevel10k + Kitty (auxiliar). |
-| `.zshrc` | Config de shell con plugins, aliases condicionales y carga lazy de NVM. |
-| `kitty.conf` | Config del terminal Kitty con tema Tokyo Night. |
+| `lib/post_install_config.sh` | Wizard de 6 pasos con tabla resumen. |
+| `.zshrc` | Config de shell con plugins, aliases condicionales, carga lazy de NVM, fastfetch. |
+| `kitty.conf` | Config del terminal Kitty con tema Tokyo Night, opacity 0.85, blur 30. |
+| `~/.config/fastfetch/config.jsonc` | Config del system info (lo crea `desktop-touch.sh`). |
 | `arch_cheatsheet.md` | Referencia rápida de comandos: pacman, yay, docker, git, KDE, SMB/NAS. |
 | `debian_cheatsheet.md` | Equivalente para Debian: apt, dpkg, repos `.deb`, KVM/libvirt. |
 | `checklist_instalacion.md` | Guía paso a paso con checklist de verificación. |
+| `CHANGELOG.md` | Historial de cambios del repo. |
 | `guia_vpn_nas.md` | Guía Tailscale + NAS por SMB. |
 | `guia_pcsx2.md` | Guía emulador PS2. |
 
@@ -227,16 +222,18 @@ KDE → Ajustes del sistema → Pantallas
 
 ```bash
 ./validate_install.sh
-# Esperás ver:
-#   OK: 40-45    FAIL: 0    WARN: 0-2    SKIP: 0
+# Esperado: 46 OK, 0 FAIL, 1 WARN (DaVinci, que es instalación manual)
+```
 
-# Comandos clave para probar:
-docker ps              # Docker sin sudo
+Comandos clave para probar:
+```bash
+docker ps              # Docker sin sudo (necesita re-login)
 node --version         # Node.js activo
 ng version             # Angular CLI
 tailscale status       # VPN
 virsh net-list --all   # libvirt red default
-wpctl status           # Audio (PipeWire)
+fastfetch              # system info con colores
+ls ~/Desktop/          # 8 iconos de apps
 ```
 
 ---
@@ -244,7 +241,7 @@ wpctl status           # Audio (PipeWire)
 ## Troubleshooting
 
 ### `Tu usuario no tiene sudo NOPASSWD`
-El script ahora avisa y continúa. Si querés unattended, configurá:
+El script avisa y continúa. Si querés unattended, configurá:
 ```bash
 sudo visudo
 # Agregar:  tu_usuario ALL=(ALL) NOPASSWD: ALL
@@ -255,16 +252,20 @@ sudo visudo
 Cerrá sesión y volvé a entrar (el grupo `docker` se aplica al nuevo login).
 Alternativa inmediata: `newgrp docker`.
 
-### `Node no aparece en la terminal`
-```bash
-source ~/.zshrc
-nvm use --lts
-```
+### `libvirtd muestra "inactive" en validate`
+Es normal — `libvirtd` usa socket activation. El daemon arranca on-demand
+cuando algo se conecta al socket. Usá `virsh -c qemu:///system list` para
+verificar que funciona. Los sockets `libvirtd.socket`, `-ro.socket` y
+`-admin.socket` son los que importan.
 
-### `Powerlevel10k no muestra iconos`
-```bash
-p10k configure
-```
+### `Pinear apps al taskbar no funciona`
+El pineo automático a taskbar de Plasma 6 + Wayland es frágil. Por eso
+el install hace symlinks a `~/Desktop/` que es 100% confiable. Si querés
+adicional pineo al taskbar: click derecho en cada app del menú Kickoff →
+"Anclar a la barra de tareas" (manual, 30 segundos, siempre funciona).
+
+### `zsh: corrupt history file /home/<user>/.zsh_history`
+El install.sh lo resetea automáticamente. Si te pasa de nuevo: `> ~/.zsh_history`
 
 ### `Bluetooth no detecta dispositivos`
 ```bash
@@ -274,10 +275,10 @@ bluetoothctl
   scan on
 ```
 
-### `libvirt: usuario sin acceso`
+### `NVM no tiene el alias default`
 ```bash
-sudo usermod -aG libvirt $USER
-# Reloguear
+source ~/.zshrc
+nvm alias default node
 ```
 
 ### `WPS no descarga el .deb`
@@ -289,6 +290,10 @@ y `sudo apt install ./wps-office_*.deb`.
 sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 flatpak install flathub com.spotify.Client
 ```
+
+### `kquitapp6 plasmashell` rompe el rendering Wayland
+No uses `kquitapp6` desde SSH. Para refrescar el panel: re-login completo
+o `qdbus org.kde.KWin /Session logout 0 0 0 0 0` para logout limpio.
 
 ---
 
