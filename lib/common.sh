@@ -278,3 +278,37 @@ add_desktop_icons() {
         fi
     fi
 }
+
+# Resetea ~/.zsh_history si esta corrupto o si causo error al cargar.
+# El error tipico es:
+#   zsh: corrupt history file /home/<user>/.zsh_history
+# Causa: Ctrl+C durante sesiones anteriores, escritura interrumpida, etc.
+# Solucion: backup del archivo corrupto + crear uno vacio (zsh lo recrea).
+#   fix_zsh_history_corruption
+fix_zsh_history_corruption() {
+    local hist_file="$HOME/.zsh_history"
+
+    # Si no existe, no hay nada que arreglar (zsh lo crea vacio la 1ra vez)
+    [ ! -f "$hist_file" ] && return 0
+
+    # Intentar leer el historial sin cargar zsh. Si falla, esta corrupto.
+    # Usamos 'fc -p' para cargar historial en modo read-only sin ejecutarlo,
+    # pero eso requiere shell interactivo. Alternativa: validar con
+    # strings/awk buscando inicio valido (: start_time: número).
+    # El formato de zsh_history empieza con ': <unix_timestamp>:0;...'
+    # Si la primera linea no matchea ese patron, probablemente esta corrupto.
+    local first_line
+    first_line=$(head -n 1 "$hist_file" 2>/dev/null)
+
+    # Patron valido: empieza con ':' seguido de digitos y ':'
+    if [[ "$first_line" =~ ^:[[:space:]]*[0-9]+: ]]; then
+        # Esta sano, no tocar
+        return 0
+    fi
+
+    # Si llegamos aca, el archivo esta corrupto (o no es un historial zsh).
+    log_warn "  ~/.zsh_history corrupto o formato invalido. Backup + reset."
+    mv "$hist_file" "$hist_file.bak.$(date +%s)" 2>/dev/null
+    : > "$hist_file"  # crear archivo vacio
+    log_ok "  ~/.zsh_history reseteado (backup en $hist_file.bak.<timestamp>)"
+}

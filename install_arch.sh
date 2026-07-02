@@ -171,6 +171,10 @@ done
 # ──────────────────────────────────────────────────────────────────────────────
 log_step "Aplicando configs (.zshrc, kitty.conf)"
 # ──────────────────────────────────────────────────────────────────────────────
+# Primero: si ~/.zsh_history esta corrupto, lo resetea. Sin esto, zsh
+# tira "corrupt history file" cada vez que arranca.
+fix_zsh_history_corruption
+
 cp -f "$SCRIPT_DIR/.zshrc" "$HOME/.zshrc"
 mkdir -p "$HOME/.config/kitty"
 cp -f "$SCRIPT_DIR/kitty.conf" "$HOME/.config/kitty/kitty.conf"
